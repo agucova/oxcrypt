@@ -2,6 +2,11 @@
 /vault
 .DS_Store
 
+# secrets - never commit
+.env
+.env.*
+!.env.example
+
 # devenv
 .devenv*
 devenv.local.nix
