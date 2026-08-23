@@ -42,6 +42,18 @@ moka = { version = "0.12.12", features = ["sync"] }
 parking_lot = "0.12.5"
 event-listener = "5.4.1"
 
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "signal", "sync", "macros", "time"] }
+
+# Concurrent data structures
+dashmap = "6"
+
+# Security
+zeroize = "1"
+
+# Signal handling (termination feature enables SIGTERM/SIGHUP handling)
+ctrlc = { version = "3", features = ["termination"] }
+
 # fuser: pure-rust on Linux, libfuse on macOS
 # Using abi-7-23 for FUSE_WRITEBACK_CACHE support (mmap compatibility)
 # macfuse-4-compat required on macOS for correct fuse_rename_in struct size (16 bytes with flags/padding)
@@ -50,19 +62,6 @@ fuser = { version = "0.16", features = ["abi-7-23"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 fuser = { version = "0.16", features = ["libfuse", "abi-7-23", "macfuse-4-compat"] }
-
-# Async runtime
-tokio = { version = "1", features = ["rt-multi-thread", "signal", "sync", "macros", "time"] }
-
-# Concurrent data structures
-dashmap = "6"
-crossbeam-channel = "0.5"
-
-# Security
-zeroize = "1"
-
-# Signal handling (termination feature enables SIGTERM/SIGHUP handling)
-ctrlc = { version = "3", features = ["termination"] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.30", features = ["signal", "fs"] }

@@ -295,7 +295,12 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run unit tests (--profile unit)
-        run: cargo nextest run --profile unit
+        # FUSE has no Windows support (fuser is unix-only), and oxcrypt-bench
+        # depends on oxcrypt-fuse
+        run: |
+          cargo nextest run --profile unit --workspace `
+            --exclude oxcrypt-fuse `
+            --exclude oxcrypt-bench
 
       - name: Build CLI (no mount backends)
         run: cargo build -p oxcrypt-cli --no-default-features --verbose

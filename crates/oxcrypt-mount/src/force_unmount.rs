@@ -20,9 +20,9 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::Result;
 #[cfg(target_os = "linux")]
 use anyhow::Context;
+use anyhow::Result;
 
 /// Force unmount a filesystem at the given path.
 ///
