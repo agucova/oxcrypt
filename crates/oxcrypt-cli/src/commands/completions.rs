@@ -22,8 +22,8 @@ use std::io;
 
 use anyhow::Result;
 use clap::{Args as ClapArgs, CommandFactory, ValueEnum};
+use clap_complete::{Shell, generate};
 use tracing::instrument;
-use clap_complete::{generate, Shell};
 
 use crate::Cli;
 

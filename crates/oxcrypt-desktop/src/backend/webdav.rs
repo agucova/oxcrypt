@@ -62,9 +62,7 @@ mod stub {
         }
 
         fn unavailable_reason(&self) -> Option<String> {
-            Some(
-                "WebDAV support requires building with --features webdav.".to_string(),
-            )
+            Some("WebDAV support requires building with --features webdav.".to_string())
         }
 
         fn backend_type(&self) -> BackendType {

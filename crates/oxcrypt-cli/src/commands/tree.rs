@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::Args as ClapArgs;
 use tracing::instrument;
 
@@ -48,9 +48,10 @@ fn print_tree_recursive(
     max_depth: Option<usize>,
 ) -> Result<()> {
     if let Some(max) = max_depth
-        && depth >= max {
-            return Ok(());
-        }
+        && depth >= max
+    {
+        return Ok(());
+    }
 
     let dirs = vault_ops.list_directories(dir_id)?;
     let files = vault_ops.list_files(dir_id)?;
@@ -71,7 +72,13 @@ fn print_tree_recursive(
         } else {
             format!("{prefix}│   ")
         };
-        print_tree_recursive(vault_ops, &dir.directory_id, &new_prefix, depth + 1, max_depth)?;
+        print_tree_recursive(
+            vault_ops,
+            &dir.directory_id,
+            &new_prefix,
+            depth + 1,
+            max_depth,
+        )?;
     }
 
     // Print files

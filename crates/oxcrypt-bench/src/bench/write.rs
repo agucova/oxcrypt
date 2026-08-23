@@ -31,7 +31,11 @@ impl SequentialWriteBenchmark {
 
     /// Get the test file path.
     fn test_file_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_seq_write_{}_iter{}.bin", self.file_size.name(), iteration))
+        mount_point.join(format!(
+            "bench_seq_write_{}_iter{}.bin",
+            self.file_size.name(),
+            iteration
+        ))
     }
 }
 
@@ -47,7 +51,10 @@ impl Benchmark for SequentialWriteBenchmark {
     fn parameters(&self) -> HashMap<String, String> {
         let mut params = HashMap::new();
         params.insert("file_size".to_string(), self.file_size.name().to_string());
-        params.insert("buffer_size".to_string(), format!("{}KB", self.buffer_size / 1024));
+        params.insert(
+            "buffer_size".to_string(),
+            format!("{}KB", self.buffer_size / 1024),
+        );
         params.insert("fsync".to_string(), self.include_fsync.to_string());
         params
     }
@@ -119,7 +126,11 @@ impl RandomWriteBenchmark {
 
     /// Get the test file path.
     fn test_file_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_rand_write_{}_iter{}.bin", self.file_size.name(), iteration))
+        mount_point.join(format!(
+            "bench_rand_write_{}_iter{}.bin",
+            self.file_size.name(),
+            iteration
+        ))
     }
 }
 
@@ -170,10 +181,7 @@ impl Benchmark for RandomWriteBenchmark {
 
         let start = Instant::now();
 
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&file_path)?;
+        let mut file = OpenOptions::new().read(true).write(true).open(&file_path)?;
 
         for offset in offsets {
             file.seek(SeekFrom::Start(offset))?;

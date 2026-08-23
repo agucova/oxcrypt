@@ -96,8 +96,7 @@ impl XpcClient {
     pub fn connect() -> Result<Self, XpcError> {
         debug!("Looking for File Provider host app");
 
-        let host_app_path = Self::find_host_app()
-            .ok_or(XpcError::HostAppNotFound)?;
+        let host_app_path = Self::find_host_app().ok_or(XpcError::HostAppNotFound)?;
 
         info!("Using File Provider host app: {:?}", host_app_path);
 
@@ -249,7 +248,10 @@ impl XpcClient {
             return Ok(());
         }
 
-        info!("Starting File Provider daemon: {:?} --daemon", self.host_app_path);
+        info!(
+            "Starting File Provider daemon: {:?} --daemon",
+            self.host_app_path
+        );
 
         // Spawn the daemon in background (detached from this process)
         let child = Command::new(&self.host_app_path)
@@ -343,19 +345,19 @@ impl XpcClient {
         } else if let Some(error_part) = response.strip_prefix("ERROR:") {
             // Parse "CODE:message" format
             let parts: Vec<&str> = error_part.splitn(2, ':').collect();
-            if parts.len() >= 2 {
-                if let Ok(code) = parts[0].parse::<i32>() {
-                    let error = match code {
-                        1 => XpcError::PasswordNotFound(domain_id.to_string()),
-                        2 => XpcError::KeychainLocked,
-                        3 => XpcError::KeychainAccessDenied,
-                        4 => XpcError::InvalidDomainId,
-                        5 => XpcError::RateLimitExceeded,
-                        _ => XpcError::ServiceError(parts[1].to_string()),
-                    };
-                    warn!("Password retrieval failed: {}", error);
-                    return Err(error);
-                }
+            if parts.len() >= 2
+                && let Ok(code) = parts[0].parse::<i32>()
+            {
+                let error = match code {
+                    1 => XpcError::PasswordNotFound(domain_id.to_string()),
+                    2 => XpcError::KeychainLocked,
+                    3 => XpcError::KeychainAccessDenied,
+                    4 => XpcError::InvalidDomainId,
+                    5 => XpcError::RateLimitExceeded,
+                    _ => XpcError::ServiceError(parts[1].to_string()),
+                };
+                warn!("Password retrieval failed: {}", error);
+                return Err(error);
             }
             // Fallback if parsing fails
             warn!("Password retrieval failed: {}", error_part);

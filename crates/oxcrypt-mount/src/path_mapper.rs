@@ -23,8 +23,8 @@
 //! its own atomic counter. The [`PathTable`] provides the mapping; lifecycle
 //! management is backend-specific.
 
-use dashmap::mapref::one::{Ref, RefMut};
 use dashmap::DashMap;
+use dashmap::mapref::one::{Ref, RefMut};
 use oxcrypt_core::vault::path::{DirId, VaultPath};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -291,14 +291,11 @@ where
 
         // Slow path: allocate new ID
         // Use entry API to avoid TOCTOU race
-        let id = self
-            .path_to_id
-            .entry(path.clone())
-            .or_insert_with(|| {
-                let new_id = self.allocate_id();
-                self.id_to_entry.insert(new_id, make_entry());
-                new_id
-            });
+        let id = self.path_to_id.entry(path.clone()).or_insert_with(|| {
+            let new_id = self.allocate_id();
+            self.id_to_entry.insert(new_id, make_entry());
+            new_id
+        });
 
         *id
     }
@@ -372,8 +369,13 @@ where
     ///
     /// This atomically updates both the path-to-ID mapping and the entry's path.
     /// Requires a mutable update function since [`PathEntry`] stores the path.
-    pub fn update_path<F>(&self, id: u64, old_path: &VaultPath, new_path: VaultPath, update_entry: F)
-    where
+    pub fn update_path<F>(
+        &self,
+        id: u64,
+        old_path: &VaultPath,
+        new_path: VaultPath,
+        update_entry: F,
+    ) where
         F: FnOnce(&mut Entry, VaultPath),
     {
         self.path_to_id.remove(old_path);

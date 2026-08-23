@@ -6,7 +6,7 @@
 
 mod common;
 
-use common::{generate_test_data, TestMount};
+use common::{TestMount, generate_test_data};
 
 /// Cryptomator chunk size (32KB)
 const CHUNK_SIZE: usize = 32 * 1024;
@@ -183,9 +183,7 @@ fn mkdir_nested() {
 
     let mount = test_mount_or_skip!("mkdir_nested");
 
-    mount
-        .mkdir_all("a/b/c/d")
-        .expect("mkdir_all failed");
+    mount.mkdir_all("a/b/c/d").expect("mkdir_all failed");
 
     assert!(mount.exists("a"), "a should exist");
     assert!(mount.exists("a/b"), "a/b should exist");
@@ -218,10 +216,7 @@ fn rmdir_nonempty_fails() {
         .expect("Write failed");
 
     let result = mount.remove_dir("nonempty_dir");
-    assert!(
-        result.is_err(),
-        "Removing non-empty directory should fail"
-    );
+    assert!(result.is_err(), "Removing non-empty directory should fail");
 }
 
 #[test]

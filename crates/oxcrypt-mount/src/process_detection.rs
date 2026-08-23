@@ -39,11 +39,7 @@ pub fn find_processes_using_mount(mountpoint: &Path) -> Vec<ProcessInfo> {
     use std::collections::HashMap;
     use std::process::Command;
 
-    let output = match Command::new("lsof")
-        .arg("+D")
-        .arg(mountpoint)
-        .output()
-    {
+    let output = match Command::new("lsof").arg("+D").arg(mountpoint).output() {
         Ok(output) => output,
         Err(e) => {
             tracing::debug!("Failed to run lsof: {}", e);

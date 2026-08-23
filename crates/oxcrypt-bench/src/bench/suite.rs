@@ -6,11 +6,9 @@
 use crate::bench::{
     Benchmark,
     workloads::{
-        WorkloadConfig, WorkloadCategory,
-        create_workloads_by_names, create_workloads_filtered,
-        create_io_workloads, create_metadata_workloads, create_lifecycle_workloads,
-        create_synthetic_workloads, create_realistic_workloads,
-        workloads_by_category,
+        WorkloadCategory, WorkloadConfig, create_io_workloads, create_lifecycle_workloads,
+        create_metadata_workloads, create_realistic_workloads, create_synthetic_workloads,
+        create_workloads_by_names, create_workloads_filtered, workloads_by_category,
     },
 };
 use crate::config::BenchmarkConfig;
@@ -20,8 +18,8 @@ use crate::config::BenchmarkConfig;
 /// If specific workloads are selected via `--workload`, those take priority
 /// over the suite setting.
 pub fn create_suite(config: &BenchmarkConfig) -> Vec<Box<dyn Benchmark>> {
-    let workload_config = WorkloadConfig::new(config.workload_scale)
-        .with_real_assets(config.real_assets);
+    let workload_config =
+        WorkloadConfig::new(config.workload_scale).with_real_assets(config.real_assets);
 
     // If specific workloads are requested, use those regardless of suite
     if !config.selected_workloads.is_empty() {
@@ -52,20 +50,16 @@ fn create_quick_suite(config: &WorkloadConfig) -> Vec<Box<dyn Benchmark>> {
 
 /// Create the read-only suite.
 fn create_read_suite(config: &WorkloadConfig) -> Vec<Box<dyn Benchmark>> {
-    let mut workloads = create_workloads_by_names(
-        workloads_by_category(WorkloadCategory::Read),
-        config,
-    );
+    let mut workloads =
+        create_workloads_by_names(workloads_by_category(WorkloadCategory::Read), config);
     workloads.extend(create_metadata_workloads(config));
     workloads
 }
 
 /// Create the write-only suite.
 fn create_write_suite(config: &WorkloadConfig) -> Vec<Box<dyn Benchmark>> {
-    let mut workloads = create_workloads_by_names(
-        workloads_by_category(WorkloadCategory::Write),
-        config,
-    );
+    let mut workloads =
+        create_workloads_by_names(workloads_by_category(WorkloadCategory::Write), config);
     workloads.extend(create_lifecycle_workloads(config));
     workloads
 }

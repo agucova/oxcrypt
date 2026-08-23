@@ -186,6 +186,8 @@ pub struct SchedulerSnapshot {
 
 impl SchedulerSnapshot {
     /// Create a snapshot from component stats.
+    // Aggregates independent stat sources into one snapshot; a params struct would add no clarity.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_components<T>(
         scheduler: &SchedulerStats,
         executor: &ExecutorStats,
@@ -343,11 +345,13 @@ impl SchedulerSnapshot {
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .min(u64::MAX as u128) as u64
+    u64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+    )
+    .unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

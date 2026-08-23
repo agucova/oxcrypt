@@ -501,14 +501,24 @@ impl BackendType {
             BackendType::Fuse => "Uses macFUSE (macOS) or libfuse (Linux) for filesystem mounting",
             BackendType::FSKit => "Uses Apple's native FSKit framework (macOS 15.4+)",
             BackendType::WebDav => "Starts a local WebDAV server (no kernel extensions required)",
-            BackendType::Nfs => "Uses local NFSv3 server with system NFS client (no kernel extensions required)",
-            BackendType::FileProvider => "Uses Apple File Provider API for cloud storage integration (macOS 13+)",
+            BackendType::Nfs => {
+                "Uses local NFSv3 server with system NFS client (no kernel extensions required)"
+            }
+            BackendType::FileProvider => {
+                "Uses Apple File Provider API for cloud storage integration (macOS 13+)"
+            }
         }
     }
 
     /// Get all backend types
     pub fn all() -> &'static [BackendType] {
-        &[BackendType::Fuse, BackendType::FSKit, BackendType::WebDav, BackendType::Nfs, BackendType::FileProvider]
+        &[
+            BackendType::Fuse,
+            BackendType::FSKit,
+            BackendType::WebDav,
+            BackendType::Nfs,
+            BackendType::FileProvider,
+        ]
     }
 
     /// Check if this backend supports fsync/F_FULLFSYNC operations.
@@ -524,7 +534,10 @@ impl BackendType {
     pub fn supports_fsync(&self) -> bool {
         match self {
             BackendType::WebDav => false, // macOS WebDAV driver returns ENOTTY
-            BackendType::Fuse | BackendType::FSKit | BackendType::Nfs | BackendType::FileProvider => {
+            BackendType::Fuse
+            | BackendType::FSKit
+            | BackendType::Nfs
+            | BackendType::FileProvider => {
                 true // File Provider manages sync internally
             }
         }
@@ -712,10 +725,7 @@ mod tests {
             serde_json::to_string(&BackendType::WebDav).unwrap(),
             "\"webdav\""
         );
-        assert_eq!(
-            serde_json::to_string(&BackendType::Nfs).unwrap(),
-            "\"nfs\""
-        );
+        assert_eq!(serde_json::to_string(&BackendType::Nfs).unwrap(), "\"nfs\"");
         assert_eq!(
             serde_json::to_string(&BackendType::FileProvider).unwrap(),
             "\"fileprovider\""

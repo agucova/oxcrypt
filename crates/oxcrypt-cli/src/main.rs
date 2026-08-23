@@ -20,22 +20,33 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand, ColorChoice};
+use clap::{ColorChoice, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 #[cfg(feature = "tokio-console")]
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use oxcrypt_core::crypto::CryptoError;
-use oxcrypt_core::vault::config::{extract_master_key, validate_vault_claims, MasterKeyExtractionError};
-use oxcrypt_core::vault::operations::{VaultOperations, VaultOperationError};
+use oxcrypt_core::vault::config::{
+    MasterKeyExtractionError, extract_master_key, validate_vault_claims,
+};
+use oxcrypt_core::vault::operations::{VaultOperationError, VaultOperations};
 use oxcrypt_mount::{
-    cleanup_stale_mounts, CleanupAction, CleanupOptions, MountError, TrackedMountInfo,
+    CleanupAction, CleanupOptions, MountError, TrackedMountInfo, cleanup_stale_mounts,
 };
 
-use crate::commands::{cat, completions, cp, export, import, info, init, ls, mkdir, mounts, mv, rm, stats, touch, tree, write};
+use crate::commands::{
+    cat, completions, cp, export, import, info, init, ls, mkdir, mounts, mv, rm, stats, touch,
+    tree, write,
+};
 use crate::state::MountStateManager;
 
-#[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+#[cfg(any(
+    feature = "fuse",
+    feature = "fskit",
+    feature = "webdav",
+    feature = "nfs",
+    feature = "fileprovider"
+))]
 use crate::commands::{backends, exec, mount, unmount};
 
 /// Command-line interface for Cryptomator vaults
@@ -109,7 +120,6 @@ impl From<&Cli> for PasswordOptions {
 #[derive(Subcommand)]
 enum Commands {
     // ============ Vault file operations (require vault path) ============
-
     /// List directory contents
     Ls(VaultCommand<ls::Args>),
 
@@ -147,7 +157,6 @@ enum Commands {
     Info(VaultCommand<info::Args>),
 
     // ============ Standalone commands (no vault required) ============
-
     /// Create a new vault
     Init(init::Args),
 
@@ -161,20 +170,43 @@ enum Commands {
     Completions(completions::Args),
 
     // ============ Mount commands (feature-gated) ============
-
-    #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+    #[cfg(any(
+        feature = "fuse",
+        feature = "fskit",
+        feature = "webdav",
+        feature = "nfs",
+        feature = "fileprovider"
+    ))]
     /// Mount vault as a filesystem
     Mount(mount::Args),
 
-    #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+    #[cfg(any(
+        feature = "fuse",
+        feature = "fskit",
+        feature = "webdav",
+        feature = "nfs",
+        feature = "fileprovider"
+    ))]
     /// Unmount a mounted vault
     Unmount(unmount::Args),
 
-    #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+    #[cfg(any(
+        feature = "fuse",
+        feature = "fskit",
+        feature = "webdav",
+        feature = "nfs",
+        feature = "fileprovider"
+    ))]
     /// List available mount backends
     Backends(backends::Args),
 
-    #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+    #[cfg(any(
+        feature = "fuse",
+        feature = "fskit",
+        feature = "webdav",
+        feature = "nfs",
+        feature = "fileprovider"
+    ))]
     /// Mount vault, run command, then unmount
     Exec(exec::Args),
 }
@@ -221,8 +253,7 @@ fn run() -> Result<()> {
     // Proactive cleanup of stale mounts and IPC sockets (non-fatal)
     // Skip if OXCRYPT_NO_STARTUP_CLEANUP=1 (used by tests)
     let skip_cleanup = std::env::var("OXCRYPT_NO_STARTUP_CLEANUP")
-        .map(|v| v == "1" || v.to_lowercase() == "true")
-        .unwrap_or(false);
+        .is_ok_and(|v| v == "1" || v.to_lowercase() == "true");
     if !skip_cleanup {
         if let Err(e) = proactive_cleanup() {
             tracing::warn!("Stale mount cleanup failed: {}", e);
@@ -242,16 +273,40 @@ fn run() -> Result<()> {
         Commands::Stats(args) => stats::run(&args),
         Commands::Completions(args) => completions::execute(&args),
 
-        #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+        #[cfg(any(
+            feature = "fuse",
+            feature = "fskit",
+            feature = "webdav",
+            feature = "nfs",
+            feature = "fileprovider"
+        ))]
         Commands::Mount(args) => {
             let password = get_passphrase(&password_opts)?;
             mount::execute(&args, &password)
         }
-        #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+        #[cfg(any(
+            feature = "fuse",
+            feature = "fskit",
+            feature = "webdav",
+            feature = "nfs",
+            feature = "fileprovider"
+        ))]
         Commands::Unmount(args) => unmount::execute(&args),
-        #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+        #[cfg(any(
+            feature = "fuse",
+            feature = "fskit",
+            feature = "webdav",
+            feature = "nfs",
+            feature = "fileprovider"
+        ))]
         Commands::Backends(args) => backends::execute(&args),
-        #[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+        #[cfg(any(
+            feature = "fuse",
+            feature = "fskit",
+            feature = "webdav",
+            feature = "nfs",
+            feature = "fileprovider"
+        ))]
         Commands::Exec(args) => {
             let password = get_passphrase(&password_opts)?;
             exec::execute(&args, &password)
@@ -274,7 +329,11 @@ fn run() -> Result<()> {
 }
 
 /// Execute a command that requires an unlocked vault
-fn execute_vault_command<T, F>(cmd: &VaultCommand<T>, password_opts: &PasswordOptions, f: F) -> Result<()>
+fn execute_vault_command<T, F>(
+    cmd: &VaultCommand<T>,
+    password_opts: &PasswordOptions,
+    f: F,
+) -> Result<()>
 where
     T: clap::Args,
     F: FnOnce(&VaultOperations, &T) -> Result<()>,
@@ -285,7 +344,10 @@ where
 }
 
 /// Special handler for info command (needs claims, not vault_ops)
-fn execute_info_command(cmd: &VaultCommand<info::Args>, password_opts: &PasswordOptions) -> Result<()> {
+fn execute_info_command(
+    cmd: &VaultCommand<info::Args>,
+    password_opts: &PasswordOptions,
+) -> Result<()> {
     let vault_path = resolve_vault_path(&cmd.vault)?;
     let passphrase = get_passphrase(password_opts)?;
 
@@ -293,8 +355,12 @@ fn execute_info_command(cmd: &VaultCommand<info::Args>, password_opts: &Password
         .context("Failed to extract master key - check your passphrase")?;
 
     let vault_config_path = vault_path.join("vault.cryptomator");
-    let vault_config = fs::read_to_string(&vault_config_path)
-        .with_context(|| format!("Failed to read vault config: {}", vault_config_path.display()))?;
+    let vault_config = fs::read_to_string(&vault_config_path).with_context(|| {
+        format!(
+            "Failed to read vault config: {}",
+            vault_config_path.display()
+        )
+    })?;
     let claims = validate_vault_claims(&vault_config, &master_key)
         .context("Failed to validate vault configuration")?;
 
@@ -395,13 +461,18 @@ fn unlock_vault(vault_path: &Path, password_opts: &PasswordOptions) -> Result<Va
         .context("Failed to extract master key - check your passphrase")?;
 
     let vault_config_path = vault_path.join("vault.cryptomator");
-    let vault_config = fs::read_to_string(&vault_config_path)
-        .with_context(|| format!("Failed to read vault config: {}", vault_config_path.display()))?;
+    let vault_config = fs::read_to_string(&vault_config_path).with_context(|| {
+        format!(
+            "Failed to read vault config: {}",
+            vault_config_path.display()
+        )
+    })?;
     let claims = validate_vault_claims(&vault_config, &master_key)
         .context("Failed to validate vault configuration")?;
 
-    let cipher_combo = claims.cipher_combo()
-        .ok_or_else(|| anyhow::anyhow!("Unsupported cipher combo: {}", claims.cipher_combo_str()))?;
+    let cipher_combo = claims.cipher_combo().ok_or_else(|| {
+        anyhow::anyhow!("Unsupported cipher combo: {}", claims.cipher_combo_str())
+    })?;
 
     Ok(VaultOperations::with_options(
         vault_path,
@@ -422,8 +493,8 @@ fn setup_tracing(verbose: u8) {
 
     #[cfg(feature = "tokio-console")]
     {
-        use tracing_subscriber::Layer;
         use std::net::SocketAddr;
+        use tracing_subscriber::Layer;
 
         let console_port: u16 = std::env::var("TOKIO_CONSOLE_PORT")
             .ok()
@@ -441,12 +512,23 @@ fn setup_tracing(verbose: u8) {
                 .spawn();
             tracing_subscriber::registry()
                 .with(console_layer)
-                .with(tracing_subscriber::fmt::layer().with_writer(io::stderr).with_filter(fmt_filter))
+                .with(
+                    tracing_subscriber::fmt::layer()
+                        .with_writer(io::stderr)
+                        .with_filter(fmt_filter),
+                )
                 .init();
-            tracing::info!("tokio-console enabled, connect with: tokio-console http://127.0.0.1:{}", console_port);
+            tracing::info!(
+                "tokio-console enabled, connect with: tokio-console http://127.0.0.1:{}",
+                console_port
+            );
         } else {
             tracing_subscriber::registry()
-                .with(tracing_subscriber::fmt::layer().with_writer(io::stderr).with_filter(fmt_filter))
+                .with(
+                    tracing_subscriber::fmt::layer()
+                        .with_writer(io::stderr)
+                        .with_filter(fmt_filter),
+                )
                 .init();
             tracing::warn!(
                 "tokio-console port {} already in use, running without console instrumentation.",
@@ -474,9 +556,10 @@ fn categorize_error(e: &anyhow::Error) -> u8 {
             && matches!(
                 crypto_err,
                 CryptoError::KeyUnwrapIntegrityFailed | CryptoError::KeyDerivationFailed(_)
-            ) {
-                return exit_code::AUTH_FAILED;
-            }
+            )
+        {
+            return exit_code::AUTH_FAILED;
+        }
 
         // Master key extraction errors (often wrap crypto errors)
         if let Some(mk_err) = cause.downcast_ref::<MasterKeyExtractionError>() {
@@ -603,11 +686,7 @@ fn proactive_cleanup() -> Result<()> {
                 );
             }
             CleanupAction::Skipped { reason } => {
-                tracing::debug!(
-                    "Skipped {}: {}",
-                    result.mountpoint.display(),
-                    reason
-                );
+                tracing::debug!("Skipped {}: {}", result.mountpoint.display(), reason);
             }
         }
     }

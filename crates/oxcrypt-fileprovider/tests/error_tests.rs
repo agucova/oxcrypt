@@ -35,7 +35,9 @@ fn mkdir_over_file() {
     let mount = test_mount_or_skip!("mkdir_file");
 
     // Create a file
-    mount.write_file("existing", b"content").expect("Write failed");
+    mount
+        .write_file("existing", b"content")
+        .expect("Write failed");
 
     // Try to create directory with same name
     let result = mount.mkdir("existing");
@@ -59,10 +61,7 @@ fn rmdir_nonempty() {
 
     // Try to remove non-empty directory
     let result = mount.remove_dir("nonempty");
-    assert!(
-        result.is_err(),
-        "Removing non-empty directory should fail"
-    );
+    assert!(result.is_err(), "Removing non-empty directory should fail");
 }
 
 #[test]
@@ -72,7 +71,10 @@ fn rmdir_nonexistent() {
     let mount = test_mount_or_skip!("rmdir_noexist");
 
     let result = mount.remove_dir("does_not_exist");
-    assert!(result.is_err(), "Removing nonexistent directory should fail");
+    assert!(
+        result.is_err(),
+        "Removing nonexistent directory should fail"
+    );
 }
 
 #[test]
@@ -91,7 +93,9 @@ fn list_file_as_directory() {
 
     let mount = test_mount_or_skip!("list_file");
 
-    mount.write_file("afile.txt", b"content").expect("Write failed");
+    mount
+        .write_file("afile.txt", b"content")
+        .expect("Write failed");
 
     let result = mount.list_dir("afile.txt");
     assert!(result.is_err(), "Listing a file as directory should fail");
@@ -205,10 +209,7 @@ fn double_mkdir() {
 
     // Try to create the same directory again
     let result = mount.mkdir("existing_dir");
-    assert!(
-        result.is_err(),
-        "Creating existing directory should fail"
-    );
+    assert!(result.is_err(), "Creating existing directory should fail");
 }
 
 #[test]
@@ -218,7 +219,9 @@ fn rename_to_existing_directory() {
     let mount = test_mount_or_skip!("rename_to_dir");
 
     mount.mkdir("target_dir").expect("mkdir target failed");
-    mount.write_file("source.txt", b"content").expect("Write failed");
+    mount
+        .write_file("source.txt", b"content")
+        .expect("Write failed");
 
     // Try to rename file to existing directory name
     let result = mount.rename("source.txt", "target_dir");

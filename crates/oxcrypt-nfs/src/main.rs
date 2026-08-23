@@ -55,8 +55,8 @@ async fn main() -> Result<()> {
         // console_subscriber returns a layer with its own built-in filter for tokio
         // instrumentation. We use per-layer filtering so the fmt layer gets our
         // custom filter while console uses its own.
-        use tracing_subscriber::Layer;
         use std::net::SocketAddr;
+        use tracing_subscriber::Layer;
 
         // CLI tools use port 6669 by default (GUI uses 6670)
         let console_port: u16 = std::env::var("TOKIO_CONSOLE_PORT")
@@ -77,7 +77,10 @@ async fn main() -> Result<()> {
                 .with(console_layer)
                 .with(tracing_subscriber::fmt::layer().with_filter(fmt_filter))
                 .init();
-            tracing::info!("tokio-console enabled, connect with: tokio-console http://127.0.0.1:{}", console_port);
+            tracing::info!(
+                "tokio-console enabled, connect with: tokio-console http://127.0.0.1:{}",
+                console_port
+            );
         } else {
             tracing_subscriber::registry()
                 .with(tracing_subscriber::fmt::layer().with_filter(fmt_filter))
@@ -112,10 +115,7 @@ async fn main() -> Result<()> {
 
     if !args.mountpoint.exists() {
         std::fs::create_dir_all(&args.mountpoint).with_context(|| {
-            format!(
-                "Failed to create mountpoint: {}",
-                args.mountpoint.display()
-            )
+            format!("Failed to create mountpoint: {}", args.mountpoint.display())
         })?;
     }
     if !args.mountpoint.is_dir() {

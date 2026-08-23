@@ -40,11 +40,7 @@ pub fn VaultCard(vault: ManagedVault, is_selected: bool, on_click: EventHandler<
     let backend_name = vault.config.preferred_backend.display_name();
 
     // Status text
-    let status_text = if is_mounted {
-        "Mounted"
-    } else {
-        backend_name
-    };
+    let status_text = if is_mounted { "Mounted" } else { backend_name };
 
     rsx! {
         div {

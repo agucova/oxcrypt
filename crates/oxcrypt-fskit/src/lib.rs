@@ -43,9 +43,9 @@ pub use backend::{FskitBackend, FskitMountHandle};
 pub mod xpc;
 
 pub use filesystem::{
-    crypto_fs_new, CryptoFilesystem, DirectoryEntry, FileAttributes, FsError,
-    FsResultAttrs, FsResultBytes, FsResultDirEntries, FsResultFs, FsResultHandle,
-    FsResultStats, FsResultUnit, FsResultWritten, VolumeStatistics,
+    CryptoFilesystem, DirectoryEntry, FileAttributes, FsError, FsResultAttrs, FsResultBytes,
+    FsResultDirEntries, FsResultFs, FsResultHandle, FsResultStats, FsResultUnit, FsResultWritten,
+    VolumeStatistics, crypto_fs_new,
 };
 
 #[swift_bridge::bridge]

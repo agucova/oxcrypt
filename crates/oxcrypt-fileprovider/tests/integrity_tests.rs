@@ -7,7 +7,7 @@
 
 mod common;
 
-use common::{generate_test_data, random_bytes, sha256, TestMount};
+use common::{TestMount, generate_test_data, random_bytes, sha256};
 
 /// Cryptomator chunk size (32KB)
 const CHUNK_SIZE: usize = 32 * 1024;
@@ -22,7 +22,12 @@ fn binary_content_preserved() {
     let patterns: Vec<(&str, Vec<u8>)> = vec![
         ("zeros", vec![0u8; 1024]),
         ("ones", vec![0xFF; 1024]),
-        ("alternating", (0..1024).map(|i| if i % 2 == 0 { 0x00 } else { 0xFF }).collect()),
+        (
+            "alternating",
+            (0..1024)
+                .map(|i| if i % 2 == 0 { 0x00 } else { 0xFF })
+                .collect(),
+        ),
         ("random", random_bytes(1024)),
     ];
 
@@ -163,7 +168,10 @@ fn hash_large_file() {
     let read_hash = sha256(&read_back);
 
     assert_eq!(read_back.len(), size, "Size mismatch");
-    assert_eq!(read_hash, original_hash, "SHA-256 hash mismatch for 5MB file");
+    assert_eq!(
+        read_hash, original_hash,
+        "SHA-256 hash mismatch for 5MB file"
+    );
 }
 
 #[test]
@@ -193,11 +201,7 @@ fn chunk_boundary_integrity() {
         let read_back = mount.read_file(&filename).expect("Read failed");
         let read_hash = sha256(&read_back);
 
-        assert_eq!(
-            read_back.len(),
-            size,
-            "Size mismatch for {size} byte file"
-        );
+        assert_eq!(read_back.len(), size, "Size mismatch for {size} byte file");
         assert_eq!(
             read_hash, original_hash,
             "Hash mismatch for {size} byte file"
@@ -253,7 +257,11 @@ fn overwrite_preserves_integrity() {
     let read_back = mount.read_file("overwrite.bin").expect("Read failed");
     let read_hash = sha256(&read_back);
 
-    assert_eq!(read_back.len(), content2.len(), "Size should match new content");
+    assert_eq!(
+        read_back.len(),
+        content2.len(),
+        "Size should match new content"
+    );
     assert_eq!(read_hash, hash2, "Hash should match new content");
 }
 

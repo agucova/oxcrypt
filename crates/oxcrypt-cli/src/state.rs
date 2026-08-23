@@ -157,7 +157,7 @@ impl MountStateManager {
                 }
                 Err(e) => {
                     return Err(e)
-                        .with_context(|| format!("Failed to lock: {}", self.lock_path.display()))
+                        .with_context(|| format!("Failed to lock: {}", self.lock_path.display()));
                 }
             }
         }
@@ -225,9 +225,7 @@ impl MountStateManager {
     pub fn add_mount(&self, entry: MountEntry) -> Result<()> {
         self.with_lock(|state| {
             // Remove any existing entry for the same mountpoint (stale)
-            state
-                .mounts
-                .retain(|m| m.mountpoint != entry.mountpoint);
+            state.mounts.retain(|m| m.mountpoint != entry.mountpoint);
 
             state.mounts.push(entry);
             Ok(())
@@ -258,7 +256,10 @@ impl MountStateManager {
     #[allow(dead_code)]
     pub fn find_by_mountpoint(&self, mountpoint: &Path) -> Result<Option<MountEntry>> {
         let state = self.load()?;
-        Ok(state.mounts.into_iter().find(|m| m.mountpoint == mountpoint))
+        Ok(state
+            .mounts
+            .into_iter()
+            .find(|m| m.mountpoint == mountpoint))
     }
 
     /// List all mount entries from the state file.
@@ -382,8 +383,8 @@ pub fn get_system_mounts() -> Result<std::collections::HashSet<PathBuf>> {
     #[cfg(target_os = "linux")]
     {
         // Parse /proc/mounts
-        let contents = std::fs::read_to_string("/proc/mounts")
-            .context("Failed to read /proc/mounts")?;
+        let contents =
+            std::fs::read_to_string("/proc/mounts").context("Failed to read /proc/mounts")?;
         for line in contents.lines() {
             // Format: device mountpoint fstype options dump pass
             let parts: Vec<&str> = line.split_whitespace().collect();

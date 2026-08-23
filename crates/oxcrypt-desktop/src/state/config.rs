@@ -175,7 +175,10 @@ impl VaultConfig {
     /// Validate that this vault configuration points to a valid vault
     pub fn validate(&self) -> Result<(), String> {
         if !self.path.exists() {
-            return Err(format!("Vault path does not exist: {}", self.path.display()));
+            return Err(format!(
+                "Vault path does not exist: {}",
+                self.path.display()
+            ));
         }
 
         let vault_file = self.path.join("vault.cryptomator");
@@ -211,8 +214,8 @@ pub struct AppConfig {
 impl AppConfig {
     /// Get the configuration file path
     pub fn config_path() -> Result<PathBuf, ConfigError> {
-        let dirs =
-            directories::ProjectDirs::from("com", "oxcrypt", "vault").ok_or(ConfigError::NoConfigDir)?;
+        let dirs = directories::ProjectDirs::from("com", "oxcrypt", "vault")
+            .ok_or(ConfigError::NoConfigDir)?;
         let config_dir = dirs.config_dir();
         Ok(config_dir.join("config.json"))
     }

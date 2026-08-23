@@ -77,7 +77,9 @@ fn copy_file() {
     let mount = test_mount_or_skip!("copy_file");
 
     let content = b"content to copy";
-    mount.write_file("source.txt", content).expect("Write failed");
+    mount
+        .write_file("source.txt", content)
+        .expect("Write failed");
 
     mount
         .copy_file("source.txt", "copy.txt")
@@ -130,10 +132,7 @@ fn move_directory() {
 
     assert!(!mount.exists("old_dir"), "Old dir should not exist");
     assert!(mount.exists("new_dir"), "New dir should exist");
-    assert!(
-        mount.exists("new_dir/file.txt"),
-        "File inside should exist"
-    );
+    assert!(mount.exists("new_dir/file.txt"), "File inside should exist");
 
     let content = mount.read_file("new_dir/file.txt").expect("Read failed");
     assert_eq!(content, b"inside");

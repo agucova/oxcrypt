@@ -75,11 +75,10 @@ impl From<GuiError> for UserFacingError {
             GuiError::MountFailed(msg) => UserFacingError::new("Couldn't Mount Vault", msg)
                 .with_suggestion("Make sure FUSE is installed and try again."),
 
-            GuiError::UnmountFailed(msg) => {
-                UserFacingError::new("Couldn't Unmount Vault", msg).with_suggestion(
+            GuiError::UnmountFailed(msg) => UserFacingError::new("Couldn't Unmount Vault", msg)
+                .with_suggestion(
                     "Make sure no applications are using files in the vault and try again.",
-                )
-            }
+                ),
 
             GuiError::Config(e) => UserFacingError::new("Configuration Error", e.to_string())
                 .with_suggestion("Try resetting your configuration."),

@@ -20,7 +20,8 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 /// On failure, shows sizes and first differing position rather than
 /// dumping potentially huge byte arrays.
 pub fn assert_bytes_equal(actual: &[u8], expected: &[u8], context: &str) {
-    assert!(actual.len() == expected.len(), 
+    assert!(
+        actual.len() == expected.len(),
         "{}: size mismatch - expected {} bytes, got {} bytes",
         context,
         expected.len(),
@@ -28,7 +29,8 @@ pub fn assert_bytes_equal(actual: &[u8], expected: &[u8], context: &str) {
     );
 
     for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
-        assert!(a == e, 
+        assert!(
+            a == e,
             "{context}: content mismatch at byte {i} - expected 0x{e:02x}, got 0x{a:02x}"
         );
     }
@@ -40,9 +42,13 @@ pub fn assert_bytes_equal(actual: &[u8], expected: &[u8], context: &str) {
 /// content in error messages would be impractical.
 pub fn assert_hash_equal(actual: &[u8], expected_hash: &[u8; 32], context: &str) {
     let actual_hash = sha256(actual);
-    assert!(&actual_hash == expected_hash, 
+    assert!(
+        &actual_hash == expected_hash,
         "{}: hash mismatch\n  expected: {:02x?}\n  got:      {:02x?}\n  (data size: {} bytes)",
-        context, expected_hash, actual_hash, actual.len()
+        context,
+        expected_hash,
+        actual_hash,
+        actual.len()
     );
 }
 
@@ -57,13 +63,12 @@ pub fn assert_errno<T: std::fmt::Debug>(
 ) {
     match result {
         Ok(value) => {
-            panic!(
-                "{context}: expected errno {expected_errno} but got success with {value:?}"
-            );
+            panic!("{context}: expected errno {expected_errno} but got success with {value:?}");
         }
         Err(err) => {
             let actual_errno = err.raw_os_error().unwrap_or(0);
-            assert!(actual_errno == expected_errno, 
+            assert!(
+                actual_errno == expected_errno,
                 "{}: expected errno {} ({}), got errno {} ({})",
                 context,
                 expected_errno,
@@ -126,9 +131,7 @@ pub fn assert_io_ok<T>(result: std::io::Result<T>, context: &str) -> T {
 /// Assert that an I/O result is an error (any error).
 pub fn assert_io_err<T: std::fmt::Debug>(result: std::io::Result<T>, context: &str) {
     if let Ok(value) = result {
-        panic!(
-            "{context}: expected error but got success with {value:?}"
-        );
+        panic!("{context}: expected error but got success with {value:?}");
     }
 }
 

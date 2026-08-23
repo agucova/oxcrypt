@@ -135,14 +135,14 @@ impl TimeoutFs {
     ///
     /// Unlike `Path::is_dir()`, this version has timeout protection.
     pub fn is_dir(&self, path: impl AsRef<Path>) -> bool {
-        self.metadata(path).map(|m| m.is_dir()).unwrap_or(false)
+        self.metadata(path).is_ok_and(|m| m.is_dir())
     }
 
     /// Check if a path is a file.
     ///
     /// Unlike `Path::is_file()`, this version has timeout protection.
     pub fn is_file(&self, path: impl AsRef<Path>) -> bool {
-        self.metadata(path).map(|m| m.is_file()).unwrap_or(false)
+        self.metadata(path).is_ok_and(|m| m.is_file())
     }
 
     /// Create a directory and all of its parent components.
@@ -209,10 +209,7 @@ impl TimeoutFs {
     /// into memory, unlike the iterator returned by `std::fs::read_dir`.
     pub fn read_dir(&self, path: impl AsRef<Path>) -> io::Result<Vec<fs::DirEntry>> {
         let path = path.as_ref().to_path_buf();
-        self.run_with_timeout(move || {
-            fs::read_dir(&path)?
-                .collect::<Result<Vec<_>, _>>()
-        })
+        self.run_with_timeout(move || fs::read_dir(&path)?.collect::<Result<Vec<_>, _>>())
     }
 
     /// Canonicalize a path (resolve symlinks and make absolute).
@@ -241,7 +238,11 @@ impl TimeoutFs {
     ///
     /// This is useful when you need specific open options but still want
     /// timeout protection on the write.
-    pub fn create_and_write(&self, path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> io::Result<()> {
+    pub fn create_and_write(
+        &self,
+        path: impl AsRef<Path>,
+        contents: impl AsRef<[u8]>,
+    ) -> io::Result<()> {
         let path = path.as_ref().to_path_buf();
         let contents = contents.as_ref().to_vec();
         self.run_with_timeout(move || {
@@ -257,7 +258,11 @@ impl TimeoutFs {
     /// Note: The returned `File` handle is NOT timeout-protected for subsequent
     /// read/write operations. Use `open_and_read` or `create_and_write` for
     /// fully protected operations.
-    pub fn open_with_options(&self, path: impl AsRef<Path>, options: &OpenOptions) -> io::Result<File> {
+    pub fn open_with_options(
+        &self,
+        path: impl AsRef<Path>,
+        options: &OpenOptions,
+    ) -> io::Result<File> {
         let path = path.as_ref().to_path_buf();
         let options = options.clone();
         self.run_with_timeout(move || options.open(&path))

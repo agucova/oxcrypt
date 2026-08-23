@@ -14,7 +14,7 @@ use std::process::Command;
 use std::time::Duration;
 use tracing::instrument;
 
-use crate::state::{is_process_alive, MountStateManager};
+use crate::state::{MountStateManager, is_process_alive};
 
 #[derive(ClapArgs, Clone)]
 pub struct Args {
@@ -59,7 +59,7 @@ pub fn execute(args: &Args) -> Result<()> {
 
         #[cfg(unix)]
         {
-            use nix::sys::signal::{kill, Signal};
+            use nix::sys::signal::{Signal, kill};
             use nix::unistd::Pid;
 
             // SAFETY: PIDs are always positive in practice. We use wrapping cast here
@@ -167,9 +167,7 @@ fn unmount_macos(mountpoint: &PathBuf, force: bool) -> Result<()> {
     }
     cmd.arg(mountpoint);
 
-    let output = cmd
-        .output()
-        .context("Failed to execute diskutil unmount")?;
+    let output = cmd.output().context("Failed to execute diskutil unmount")?;
 
     if output.status.success() {
         return Ok(());
@@ -182,9 +180,7 @@ fn unmount_macos(mountpoint: &PathBuf, force: bool) -> Result<()> {
     }
     cmd.arg(mountpoint);
 
-    let output = cmd
-        .output()
-        .context("Failed to execute umount")?;
+    let output = cmd.output().context("Failed to execute umount")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -219,9 +215,7 @@ fn unmount_linux(mountpoint: &PathBuf, force: bool) -> Result<()> {
     }
     cmd.arg(mountpoint);
 
-    let output = cmd
-        .output()
-        .context("Failed to execute umount")?;
+    let output = cmd.output().context("Failed to execute umount")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

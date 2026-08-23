@@ -127,7 +127,11 @@ pub fn execute(vault_ops: &VaultOperations, args: &Args) -> Result<()> {
         stats.files_imported,
         format_bytes(stats.bytes_imported),
         stats.directories_created,
-        if stats.directories_created == 1 { "y" } else { "ies" },
+        if stats.directories_created == 1 {
+            "y"
+        } else {
+            "ies"
+        },
         stats.files_skipped
     );
 
@@ -167,7 +171,12 @@ fn import_file(
         .with_context(|| format!("Failed to write to vault: {dest}"))?;
 
     if args.progress {
-        eprintln!("Imported: {} -> {} ({})", source.display(), dest, format_bytes(size));
+        eprintln!(
+            "Imported: {} -> {} ({})",
+            source.display(),
+            dest,
+            format_bytes(size)
+        );
     }
 
     stats.files_imported += 1;
@@ -205,10 +214,7 @@ fn import_directory(
     for entry in entries {
         let entry = entry?;
         let entry_path = entry.path();
-        let entry_name = entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
+        let entry_name = entry.file_name().to_string_lossy().to_string();
 
         let target_path = format!("{}/{}", dest.trim_end_matches('/'), entry_name);
 
@@ -216,14 +222,18 @@ fn import_directory(
             match import_file(vault_ops, &entry_path, &target_path, args, stats) {
                 Ok(()) => {}
                 Err(e) => {
-                    stats.errors.push(format!("{}: {}", entry_path.display(), e));
+                    stats
+                        .errors
+                        .push(format!("{}: {}", entry_path.display(), e));
                 }
             }
         } else if entry_path.is_dir() {
             match import_directory(vault_ops, &entry_path, &target_path, args, stats) {
                 Ok(()) => {}
                 Err(e) => {
-                    stats.errors.push(format!("{}: {}", entry_path.display(), e));
+                    stats
+                        .errors
+                        .push(format!("{}: {}", entry_path.display(), e));
                 }
             }
         } else if entry_path.is_symlink() {
@@ -239,12 +249,18 @@ fn import_directory(
                             }
                         }
                         Err(e) => {
-                            stats.errors.push(format!("{}: {}", entry_path.display(), e));
+                            stats
+                                .errors
+                                .push(format!("{}: {}", entry_path.display(), e));
                         }
                     }
                 }
                 Err(e) => {
-                    stats.errors.push(format!("Failed to read symlink {}: {}", entry_path.display(), e));
+                    stats.errors.push(format!(
+                        "Failed to read symlink {}: {}",
+                        entry_path.display(),
+                        e
+                    ));
                 }
             }
         }

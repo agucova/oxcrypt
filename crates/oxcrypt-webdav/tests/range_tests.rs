@@ -9,7 +9,7 @@
 
 mod common;
 
-use common::{multi_chunk_content, random_bytes, TestServer, CHUNK_SIZE};
+use common::{CHUNK_SIZE, TestServer, multi_chunk_content, random_bytes};
 use reqwest::StatusCode;
 
 // ============================================================================

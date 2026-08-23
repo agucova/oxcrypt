@@ -32,7 +32,11 @@ impl SequentialReadBenchmark {
 
     /// Get the test file path.
     fn test_file_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_seq_read_{}_iter{}.bin", self.file_size.name(), iteration))
+        mount_point.join(format!(
+            "bench_seq_read_{}_iter{}.bin",
+            self.file_size.name(),
+            iteration
+        ))
     }
 }
 
@@ -48,7 +52,10 @@ impl Benchmark for SequentialReadBenchmark {
     fn parameters(&self) -> HashMap<String, String> {
         let mut params = HashMap::new();
         params.insert("file_size".to_string(), self.file_size.name().to_string());
-        params.insert("buffer_size".to_string(), format!("{}KB", self.buffer_size / 1024));
+        params.insert(
+            "buffer_size".to_string(),
+            format!("{}KB", self.buffer_size / 1024),
+        );
         params
     }
 
@@ -131,7 +138,11 @@ impl RandomReadBenchmark {
 
     /// Get the test file path.
     fn test_file_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_rand_read_{}_iter{}.bin", self.file_size.name(), iteration))
+        mount_point.join(format!(
+            "bench_rand_read_{}_iter{}.bin",
+            self.file_size.name(),
+            iteration
+        ))
     }
 }
 

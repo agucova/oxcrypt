@@ -2,4 +2,4 @@
 
 pub mod harness;
 
-pub use harness::{generate_test_data, random_bytes, sha256, TestMount};
+pub use harness::{TestMount, generate_test_data, random_bytes, sha256};

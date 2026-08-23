@@ -147,7 +147,10 @@ pub fn patterned_chunks(num_chunks: usize) -> Vec<u8> {
 ///
 /// Returns `full_chunks * CHUNK_SIZE + partial_bytes` bytes.
 pub fn partial_final_chunk(full_chunks: usize, partial_bytes: usize) -> Vec<u8> {
-    assert!(partial_bytes < CHUNK_SIZE, "partial_bytes must be less than CHUNK_SIZE");
+    assert!(
+        partial_bytes < CHUNK_SIZE,
+        "partial_bytes must be less than CHUNK_SIZE"
+    );
     random_bytes(full_chunks * CHUNK_SIZE + partial_bytes)
 }
 

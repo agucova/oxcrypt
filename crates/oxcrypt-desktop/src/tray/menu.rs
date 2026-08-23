@@ -38,7 +38,10 @@ pub mod ids {
             Some(super::VaultAction::Lock(vault_id.to_string()))
         } else if let Some(vault_id) = id.strip_prefix("vault_force_lock_") {
             Some(super::VaultAction::ForceLock(vault_id.to_string()))
-        } else { id.strip_prefix("vault_reveal_").map(|vault_id| super::VaultAction::Reveal(vault_id.to_string())) }
+        } else {
+            id.strip_prefix("vault_reveal_")
+                .map(|vault_id| super::VaultAction::Reveal(vault_id.to_string()))
+        }
     }
 }
 
@@ -133,12 +136,8 @@ fn build_vault_submenu(vault: &ManagedVault) -> Submenu {
     match &vault.state {
         VaultState::Locked => {
             // Unlock option for locked vaults
-            let unlock = MenuItem::with_id(
-                ids::vault_unlock(&vault.config.id),
-                "Unlock...",
-                true,
-                None,
-            );
+            let unlock =
+                MenuItem::with_id(ids::vault_unlock(&vault.config.id), "Unlock...", true, None);
             let _ = submenu.append(&unlock);
 
             // Show vault location in Finder

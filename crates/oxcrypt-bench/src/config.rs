@@ -91,7 +91,6 @@ impl Implementation {
     pub fn is_network_backend(&self) -> bool {
         matches!(self, Self::OxidizedWebDav | Self::OxidizedNfs)
     }
-
 }
 
 /// Benchmark suite to run.
@@ -203,7 +202,13 @@ impl FileSize {
 
     /// Get all standard file sizes (up to 10MB for normal suite).
     pub fn all() -> Vec<Self> {
-        vec![Self::Tiny, Self::OneChunk, Self::Medium, Self::Large, Self::XLarge]
+        vec![
+            Self::Tiny,
+            Self::OneChunk,
+            Self::Medium,
+            Self::Large,
+            Self::XLarge,
+        ]
     }
 
     /// Get file sizes for the quick suite.
@@ -406,7 +411,7 @@ impl BenchmarkConfig {
             flamegraph_dir: PathBuf::from("./profiles"),
             profile_frequency: 997,
             real_assets: false,
-            workload_scale: 0.1, // Default to 10% for faster runs
+            workload_scale: 0.1,            // Default to 10% for faster runs
             selected_workloads: Vec::new(), // Empty means all workloads
         }
     }
@@ -414,9 +419,10 @@ impl BenchmarkConfig {
     /// Get mount point for a specific implementation.
     pub fn mount_point(&self, implementation: Implementation) -> PathBuf {
         match implementation {
-            Implementation::OfficialCryptomator => {
-                self.external_vault_path.clone().unwrap_or_else(|| self.mount_prefix.join("external"))
-            }
+            Implementation::OfficialCryptomator => self
+                .external_vault_path
+                .clone()
+                .unwrap_or_else(|| self.mount_prefix.join("external")),
             Implementation::OxidizedFuse => self.mount_prefix.join("fuse"),
             Implementation::OxidizedFsKit => self.mount_prefix.join("fskit"),
             Implementation::OxidizedWebDav => self.mount_prefix.join("webdav"),
@@ -439,7 +445,7 @@ impl BenchmarkConfig {
     pub fn directory_sizes(&self) -> Vec<usize> {
         match self.suite {
             BenchmarkSuite::Quick => vec![10],
-            _ => vec![10, 100, 1000],  // Restored: O(1) lookup fix should handle 1000 files
+            _ => vec![10, 100, 1000], // Restored: O(1) lookup fix should handle 1000 files
         }
     }
 
@@ -489,7 +495,10 @@ impl BenchmarkConfig {
 
     /// Check if we should run workload benchmarks.
     pub fn run_workloads(&self) -> bool {
-        matches!(self.suite, BenchmarkSuite::Workload | BenchmarkSuite::Complete)
+        matches!(
+            self.suite,
+            BenchmarkSuite::Workload | BenchmarkSuite::Complete
+        )
     }
 }
 

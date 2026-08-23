@@ -240,7 +240,7 @@ impl VaultOperationsAsync {
     /// Open an existing vault using a pre-validated password.
     ///
     /// This is the second phase of the two-phase unlock flow. Use this method
-    /// after successfully calling [`PasswordValidator::validate()`] to create
+    /// after successfully calling [`crate::vault::PasswordValidator::validate()`] to create
     /// vault operations without re-validating the password.
     ///
     /// This approach provides:
@@ -588,11 +588,11 @@ impl VaultOperationsAsync {
         let sync_ops = match self.as_sync() {
             Ok(ops) => ops,
             Err(e) => {
-                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }))
+                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }));
             }
         };
 
-        SyncFirstResult::Done(sync_ops.find_file(directory_id, filename).map_err(Into::into))
+        SyncFirstResult::Done(sync_ops.find_file(directory_id, filename))
     }
 
     /// Try to find a directory synchronously.
@@ -611,15 +611,11 @@ impl VaultOperationsAsync {
         let sync_ops = match self.as_sync() {
             Ok(ops) => ops,
             Err(e) => {
-                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }))
+                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }));
             }
         };
 
-        SyncFirstResult::Done(
-            sync_ops
-                .find_directory(parent_directory_id, dir_name)
-                .map_err(Into::into),
-        )
+        SyncFirstResult::Done(sync_ops.find_directory(parent_directory_id, dir_name))
     }
 
     /// Try to find a symlink synchronously.
@@ -638,15 +634,11 @@ impl VaultOperationsAsync {
         let sync_ops = match self.as_sync() {
             Ok(ops) => ops,
             Err(e) => {
-                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }))
+                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }));
             }
         };
 
-        SyncFirstResult::Done(
-            sync_ops
-                .find_symlink(directory_id, symlink_name)
-                .map_err(Into::into),
-        )
+        SyncFirstResult::Done(sync_ops.find_symlink(directory_id, symlink_name))
     }
 
     /// Try to list files synchronously.
@@ -664,11 +656,11 @@ impl VaultOperationsAsync {
         let sync_ops = match self.as_sync() {
             Ok(ops) => ops,
             Err(e) => {
-                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }))
+                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }));
             }
         };
 
-        SyncFirstResult::Done(sync_ops.list_files(directory_id).map_err(Into::into))
+        SyncFirstResult::Done(sync_ops.list_files(directory_id))
     }
 
     /// Try to list directories synchronously.
@@ -686,11 +678,11 @@ impl VaultOperationsAsync {
         let sync_ops = match self.as_sync() {
             Ok(ops) => ops,
             Err(e) => {
-                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }))
+                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }));
             }
         };
 
-        SyncFirstResult::Done(sync_ops.list_directories(parent_id).map_err(Into::into))
+        SyncFirstResult::Done(sync_ops.list_directories(parent_id))
     }
 
     /// Try to list symlinks synchronously.
@@ -708,11 +700,11 @@ impl VaultOperationsAsync {
         let sync_ops = match self.as_sync() {
             Ok(ops) => ops,
             Err(e) => {
-                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }))
+                return SyncFirstResult::Done(Err(VaultOperationError::KeyAccess { source: e }));
             }
         };
 
-        SyncFirstResult::Done(sync_ops.list_symlinks(directory_id).map_err(Into::into))
+        SyncFirstResult::Done(sync_ops.list_symlinks(directory_id))
     }
 
     /// Encrypt a filename with caching.
@@ -783,7 +775,7 @@ impl VaultOperationsAsync {
             let sync_ops = self
                 .as_sync()
                 .map_err(|e| VaultOperationError::KeyAccess { source: e })?;
-            return Ok(sync_ops.list_files(directory_id)?);
+            return sync_ops.list_files(directory_id);
         }
 
         // Fall back to async path
@@ -933,7 +925,7 @@ impl VaultOperationsAsync {
             let sync_ops = self
                 .as_sync()
                 .map_err(|e| VaultOperationError::KeyAccess { source: e })?;
-            return Ok(sync_ops.list_directories(directory_id)?);
+            return sync_ops.list_directories(directory_id);
         }
 
         // Fall back to async path
@@ -1081,7 +1073,7 @@ impl VaultOperationsAsync {
             let sync_ops = self
                 .as_sync()
                 .map_err(|e| VaultOperationError::KeyAccess { source: e })?;
-            return Ok(sync_ops.find_file(directory_id, filename)?);
+            return sync_ops.find_file(directory_id, filename);
         }
 
         // Fall back to async path
@@ -1164,7 +1156,7 @@ impl VaultOperationsAsync {
             let sync_ops = self
                 .as_sync()
                 .map_err(|e| VaultOperationError::KeyAccess { source: e })?;
-            return Ok(sync_ops.find_directory(parent_directory_id, dir_name)?);
+            return sync_ops.find_directory(parent_directory_id, dir_name);
         }
 
         // Fall back to async path
@@ -1244,7 +1236,7 @@ impl VaultOperationsAsync {
             let sync_ops = self
                 .as_sync()
                 .map_err(|e| VaultOperationError::KeyAccess { source: e })?;
-            return Ok(sync_ops.find_symlink(directory_id, symlink_name)?);
+            return sync_ops.find_symlink(directory_id, symlink_name);
         }
 
         // Fall back to async path
@@ -1535,7 +1527,7 @@ impl VaultOperationsAsync {
 
     /// Open a file for streaming reads without holding vault locks.
     ///
-    /// Unlike [`open_file()`], this method does NOT transfer locks to the reader.
+    /// Unlike [`Self::open_file()`], this method does NOT transfer locks to the reader.
     /// Locks are only held during the initial file lookup, then released.
     ///
     /// This is the preferred method for FUSE where files may remain open for
@@ -1619,7 +1611,7 @@ impl VaultOperationsAsync {
 
     /// Open a file for streaming reads by path.
     ///
-    /// Convenience wrapper around [`open_file()`] that accepts a path string.
+    /// Convenience wrapper around [`Self::open_file()`] that accepts a path string.
     #[instrument(level = "debug", skip(self), fields(path = path.as_ref()))]
     pub async fn open_by_path(
         &self,
@@ -1744,7 +1736,7 @@ impl VaultOperationsAsync {
 
     /// Create a file for streaming writes by path.
     ///
-    /// Convenience wrapper around [`create_file()`] that accepts a path string.
+    /// Convenience wrapper around [`Self::create_file()`] that accepts a path string.
     /// Does NOT create parent directories automatically.
     #[instrument(level = "debug", skip(self), fields(path = path.as_ref()))]
     pub async fn create_by_path(
@@ -3588,7 +3580,7 @@ impl VaultOperationsAsync {
             let sync_ops = self
                 .as_sync()
                 .map_err(|e| VaultOperationError::KeyAccess { source: e })?;
-            return Ok(sync_ops.list_symlinks(directory_id)?);
+            return sync_ops.list_symlinks(directory_id);
         }
 
         // Fall back to async path

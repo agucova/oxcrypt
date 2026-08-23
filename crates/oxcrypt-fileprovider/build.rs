@@ -21,10 +21,10 @@ fn main() {
         // Compute hash for integrity verification
         match compute_bundle_hash(&extension_bundle) {
             Ok(hash) => {
-                println!("cargo:rustc-env=EXTENSION_SHA256={}", hash);
+                println!("cargo:rustc-env=EXTENSION_SHA256={hash}");
             }
             Err(e) => {
-                println!("cargo:warning=Failed to compute extension hash: {}", e);
+                println!("cargo:warning=Failed to compute extension hash: {e}");
                 println!("cargo:rustc-env=EXTENSION_SHA256=unknown");
             }
         }
@@ -33,23 +33,17 @@ fn main() {
         match bundle_size(&extension_bundle) {
             Ok(size) => {
                 let size_mb = size / 1_000_000;
-                println!(
-                    "cargo:warning=Embedding FileProvider extension ({} MB)",
-                    size_mb
-                );
+                println!("cargo:warning=Embedding FileProvider extension ({size_mb} MB)");
             }
             Err(e) => {
-                println!(
-                    "cargo:warning=Could not determine extension bundle size: {}",
-                    e
-                );
+                println!("cargo:warning=Could not determine extension bundle size: {e}");
             }
         }
     } else {
         // Create empty placeholder directory to prevent include_dir!() from panicking
         // The extension_manager.rs code checks EXTENSION_SHA256 to determine if bundle is usable
         if let Err(e) = fs::create_dir_all(&extension_bundle) {
-            println!("cargo:warning=Failed to create placeholder directory: {}", e);
+            println!("cargo:warning=Failed to create placeholder directory: {e}");
         }
 
         println!("cargo:warning==============================================");
@@ -73,7 +67,7 @@ fn compute_bundle_hash(bundle_path: &Path) -> Result<String, Box<dyn std::error:
     hash_directory(&mut hasher, bundle_path)?;
 
     let result = hasher.finalize();
-    Ok(format!("{:x}", result))
+    Ok(format!("{result:x}"))
 }
 
 fn hash_directory(hasher: &mut Sha256, dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -123,11 +117,11 @@ fn configure_swift_bridge() {
     let output_dir = PathBuf::from("extension/Shared/generated");
 
     // Create output directory if it doesn't exist
-    if !output_dir.exists() {
-        if let Err(e) = fs::create_dir_all(&output_dir) {
-            println!("cargo:warning=Failed to create swift_bridge output directory: {}", e);
-            return;
-        }
+    if !output_dir.exists()
+        && let Err(e) = fs::create_dir_all(&output_dir)
+    {
+        println!("cargo:warning=Failed to create swift_bridge output directory: {e}");
+        return;
     }
 
     // Write all bridges to the output directory

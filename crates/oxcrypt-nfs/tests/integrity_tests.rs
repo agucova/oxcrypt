@@ -13,8 +13,8 @@
 mod common;
 
 use common::{
-    assert_file_content, assert_file_hash, multi_chunk_content, random_bytes, sha256, TestMount,
-    CHUNK_SIZE,
+    CHUNK_SIZE, TestMount, assert_file_content, assert_file_hash, multi_chunk_content,
+    random_bytes, sha256,
 };
 
 // ============================================================================
@@ -47,7 +47,9 @@ fn test_all_byte_values() {
     let content: Vec<u8> = (0u8..=255).collect();
     assert_eq!(content.len(), 256);
 
-    mount.write("/all_bytes.bin", &content).expect("write failed");
+    mount
+        .write("/all_bytes.bin", &content)
+        .expect("write failed");
     assert_file_content(&mount, "/all_bytes.bin", &content);
 }
 
@@ -61,7 +63,9 @@ fn test_all_byte_values_repeated() {
     assert_eq!(content.len(), 256_000);
 
     let expected_hash = sha256(&content);
-    mount.write("/all_bytes_large.bin", &content).expect("write failed");
+    mount
+        .write("/all_bytes_large.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/all_bytes_large.bin", &expected_hash);
 }
 
@@ -81,7 +85,9 @@ fn test_high_bytes_only() {
     skip_if_not_mounted!(mount);
 
     let content = vec![0xFFu8; 1000];
-    mount.write("/high_bytes.bin", &content).expect("write failed");
+    mount
+        .write("/high_bytes.bin", &content)
+        .expect("write failed");
     assert_file_content(&mount, "/high_bytes.bin", &content);
 }
 
@@ -95,7 +101,9 @@ fn test_unicode_content_basic() {
     skip_if_not_mounted!(mount);
 
     let content = "Hello, 世界! Привет мир! 🌍🌎🌏";
-    mount.write("/unicode.txt", content.as_bytes()).expect("write failed");
+    mount
+        .write("/unicode.txt", content.as_bytes())
+        .expect("write failed");
     assert_file_content(&mount, "/unicode.txt", content.as_bytes());
 }
 
@@ -117,7 +125,9 @@ fn test_unicode_content_extended() {
         "Math: ∑∏∫∂√∞\n",
     );
 
-    mount.write("/unicode_extended.txt", content.as_bytes()).expect("write failed");
+    mount
+        .write("/unicode_extended.txt", content.as_bytes())
+        .expect("write failed");
     assert_file_content(&mount, "/unicode_extended.txt", content.as_bytes());
 }
 
@@ -141,7 +151,9 @@ fn test_unicode_filename_emoji() {
     skip_if_not_mounted!(mount);
 
     let content = b"emoji filename test";
-    mount.write("/test_🔐_file.txt", content).expect("write failed");
+    mount
+        .write("/test_🔐_file.txt", content)
+        .expect("write failed");
     assert_file_content(&mount, "/test_🔐_file.txt", content);
 }
 
@@ -151,7 +163,9 @@ fn test_unicode_filename_mixed_scripts() {
     skip_if_not_mounted!(mount);
 
     let content = b"mixed script filename";
-    mount.write("/Test_テスト_Тест.txt", content).expect("write failed");
+    mount
+        .write("/Test_テスト_Тест.txt", content)
+        .expect("write failed");
     assert_file_content(&mount, "/Test_テスト_Тест.txt", content);
 }
 
@@ -161,7 +175,9 @@ fn test_unicode_directory_name() {
     skip_if_not_mounted!(mount);
 
     mount.mkdir("/文件夹").expect("mkdir failed");
-    mount.write("/文件夹/file.txt", b"content").expect("write failed");
+    mount
+        .write("/文件夹/file.txt", b"content")
+        .expect("write failed");
     assert_file_content(&mount, "/文件夹/file.txt", b"content");
 }
 
@@ -175,7 +191,9 @@ fn test_filename_with_spaces() {
     skip_if_not_mounted!(mount);
 
     let content = b"file with spaces";
-    mount.write("/file with spaces.txt", content).expect("write failed");
+    mount
+        .write("/file with spaces.txt", content)
+        .expect("write failed");
     assert_file_content(&mount, "/file with spaces.txt", content);
 }
 
@@ -202,7 +220,9 @@ fn test_filename_special_chars() {
     let content = b"special chars test";
 
     for path in test_cases {
-        mount.write(path, content).expect(&format!("write {} failed", path));
+        mount
+            .write(path, content)
+            .expect(&format!("write {} failed", path));
         assert_file_content(&mount, path, content);
     }
 }
@@ -232,7 +252,9 @@ fn test_chunk_boundary_pattern_data() {
     content.extend(vec![0xCCu8; CHUNK_SIZE]);
 
     let expected_hash = sha256(&content);
-    mount.write("/chunk_pattern.bin", &content).expect("write failed");
+    mount
+        .write("/chunk_pattern.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/chunk_pattern.bin", &expected_hash);
 }
 
@@ -248,7 +270,9 @@ fn test_chunk_boundary_single_byte_difference() {
     content[CHUNK_SIZE * 3 - 1] = 0x03;
 
     let expected_hash = sha256(&content);
-    mount.write("/boundary_byte.bin", &content).expect("write failed");
+    mount
+        .write("/boundary_byte.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/boundary_byte.bin", &expected_hash);
 }
 
@@ -262,7 +286,9 @@ fn test_partial_final_chunk() {
     let content = random_bytes(size);
 
     let expected_hash = sha256(&content);
-    mount.write("/partial_chunk.bin", &content).expect("write failed");
+    mount
+        .write("/partial_chunk.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/partial_chunk.bin", &expected_hash);
 }
 
@@ -276,7 +302,9 @@ fn test_minimal_final_chunk() {
     let content = random_bytes(size);
 
     let expected_hash = sha256(&content);
-    mount.write("/minimal_final.bin", &content).expect("write failed");
+    mount
+        .write("/minimal_final.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/minimal_final.bin", &expected_hash);
 }
 
@@ -294,11 +322,15 @@ fn test_write_read_write_cycle() {
     assert_file_content(&mount, "/cycle.bin", &content1);
 
     let content2 = random_bytes(20000);
-    mount.write("/cycle.bin", &content2).expect("overwrite failed");
+    mount
+        .write("/cycle.bin", &content2)
+        .expect("overwrite failed");
     assert_file_content(&mount, "/cycle.bin", &content2);
 
     let content3 = random_bytes(5000);
-    mount.write("/cycle.bin", &content3).expect("overwrite failed");
+    mount
+        .write("/cycle.bin", &content3)
+        .expect("overwrite failed");
     assert_file_content(&mount, "/cycle.bin", &content3);
 }
 
@@ -311,7 +343,9 @@ fn test_multiple_overwrite_same_size() {
 
     for _ in 0..5 {
         let content = random_bytes(size);
-        mount.write("/same_size.bin", &content).expect("write failed");
+        mount
+            .write("/same_size.bin", &content)
+            .expect("write failed");
         assert_file_content(&mount, "/same_size.bin", &content);
     }
 }
@@ -325,7 +359,9 @@ fn test_overwrite_empty_then_content() {
     assert_file_content(&mount, "/empty_first.bin", b"");
 
     let content = b"now has content";
-    mount.write("/empty_first.bin", content).expect("write failed");
+    mount
+        .write("/empty_first.bin", content)
+        .expect("write failed");
     assert_file_content(&mount, "/empty_first.bin", content);
 }
 
@@ -335,10 +371,14 @@ fn test_overwrite_content_then_empty() {
     skip_if_not_mounted!(mount);
 
     let content = b"has content initially";
-    mount.write("/content_first.bin", content).expect("write failed");
+    mount
+        .write("/content_first.bin", content)
+        .expect("write failed");
     assert_file_content(&mount, "/content_first.bin", content);
 
-    mount.write("/content_first.bin", &[]).expect("write failed");
+    mount
+        .write("/content_first.bin", &[])
+        .expect("write failed");
     assert_file_content(&mount, "/content_first.bin", b"");
 }
 
@@ -355,7 +395,9 @@ fn test_large_file_hash_verification() {
     let content = multi_chunk_content(10);
     let expected_hash = sha256(&content);
 
-    mount.write("/large_verified.bin", &content).expect("write failed");
+    mount
+        .write("/large_verified.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/large_verified.bin", &expected_hash);
 }
 
@@ -385,10 +427,17 @@ fn test_repeating_pattern() {
     skip_if_not_mounted!(mount);
 
     let pattern = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let content: Vec<u8> = pattern.iter().cycle().take(CHUNK_SIZE * 2 + 100).copied().collect();
+    let content: Vec<u8> = pattern
+        .iter()
+        .cycle()
+        .take(CHUNK_SIZE * 2 + 100)
+        .copied()
+        .collect();
 
     let expected_hash = sha256(&content);
-    mount.write("/repeating.bin", &content).expect("write failed");
+    mount
+        .write("/repeating.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/repeating.bin", &expected_hash);
 }
 
@@ -402,7 +451,9 @@ fn test_alternating_bytes() {
         .collect();
 
     let expected_hash = sha256(&content);
-    mount.write("/alternating.bin", &content).expect("write failed");
+    mount
+        .write("/alternating.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/alternating.bin", &expected_hash);
 }
 
@@ -412,12 +463,12 @@ fn test_sequential_numbers() {
     skip_if_not_mounted!(mount);
 
     // Sequential 32-bit numbers (catches endianness issues)
-    let content: Vec<u8> = (0u32..10000)
-        .flat_map(|n| n.to_le_bytes())
-        .collect();
+    let content: Vec<u8> = (0u32..10000).flat_map(|n| n.to_le_bytes()).collect();
 
     let expected_hash = sha256(&content);
-    mount.write("/sequential.bin", &content).expect("write failed");
+    mount
+        .write("/sequential.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/sequential.bin", &expected_hash);
 }
 
@@ -437,7 +488,9 @@ fn test_patterned_chunks() {
     }
 
     let expected_hash = sha256(&content);
-    mount.write("/patterned.bin", &content).expect("write failed");
+    mount
+        .write("/patterned.bin", &content)
+        .expect("write failed");
     assert_file_hash(&mount, "/patterned.bin", &expected_hash);
 }
 
@@ -454,7 +507,9 @@ fn test_chunk_identification() {
         content.extend(chunk);
     }
 
-    mount.write("/chunked_id.bin", &content).expect("write failed");
+    mount
+        .write("/chunked_id.bin", &content)
+        .expect("write failed");
 
     let read_content = mount.read("/chunked_id.bin").expect("read failed");
     assert_eq!(read_content.len(), content.len());
@@ -468,6 +523,10 @@ fn test_chunk_identification() {
             read_content[offset + 2],
             read_content[offset + 3],
         ]);
-        assert_eq!(stored_num, chunk_num, "Chunk {} identification failed", chunk_num);
+        assert_eq!(
+            stored_num, chunk_num,
+            "Chunk {} identification failed",
+            chunk_num
+        );
     }
 }

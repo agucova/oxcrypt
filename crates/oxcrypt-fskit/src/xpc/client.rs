@@ -4,7 +4,7 @@
 //! It handles connection management, message serialization, and provides type-safe
 //! methods for all XPC operations.
 
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -12,14 +12,14 @@ use std::time::{Duration, SystemTime};
 use parking_lot::Mutex;
 
 use block2::RcBlock;
+use objc2::msg_send;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::msg_send;
 use objc2_foundation::{NSArray, NSDictionary, NSError, NSNumber, NSString};
 use secrecy::{ExposeSecret, SecretString};
 
 use super::connection::{
-    is_extension_available, OxVaultXPC_mount, OxVaultXPC_ping, OxVaultXPC_unmount, XpcConnection,
+    OxVaultXPC_mount, OxVaultXPC_ping, OxVaultXPC_unmount, XpcConnection, is_extension_available,
 };
 use super::error::FskitError;
 
@@ -166,7 +166,11 @@ impl FskitClient {
     /// - `FskitError::InvalidVault` - Path is not a valid Cryptomator vault
     /// - `FskitError::AuthFailed` - Wrong password
     /// - `FskitError::MountFailed` - Mount operation failed
-    pub fn mount(&self, vault_path: &Path, password: &SecretString) -> Result<MountInfo, FskitError> {
+    pub fn mount(
+        &self,
+        vault_path: &Path,
+        password: &SecretString,
+    ) -> Result<MountInfo, FskitError> {
         let vault_path_str = vault_path
             .to_str()
             .ok_or_else(|| FskitError::InvalidVault(vault_path.to_path_buf()))?;
@@ -184,8 +188,8 @@ impl FskitClient {
             // Convert strings to C strings for the ObjC wrapper
             let vault_c = CString::new(vault_path_str)
                 .map_err(|_| FskitError::InvalidVault(vault_path.to_path_buf()))?;
-            let password_c = CString::new(password.expose_secret())
-                .map_err(|_| FskitError::AuthFailed)?;
+            let password_c =
+                CString::new(password.expose_secret()).map_err(|_| FskitError::AuthFailed)?;
 
             // Create context with the sender - box it so it lives until the callback
             let context = Box::into_raw(Box::new(tx.clone()));
@@ -287,8 +291,7 @@ impl FskitClient {
                             let err = &*error;
                             let code: i64 = msg_send![err, code];
                             let domain: Retained<NSString> = msg_send![err, domain];
-                            let message: Retained<NSString> =
-                                msg_send![err, localizedDescription];
+                            let message: Retained<NSString> = msg_send![err, localizedDescription];
                             Err(FskitError::from_nserror_code(
                                 code,
                                 &domain.to_string(),
@@ -350,8 +353,7 @@ impl FskitClient {
                             let err = &*error;
                             let code: i64 = msg_send![err, code];
                             let domain: Retained<NSString> = msg_send![err, domain];
-                            let message: Retained<NSString> =
-                                msg_send![err, localizedDescription];
+                            let message: Retained<NSString> = msg_send![err, localizedDescription];
                             Err(FskitError::from_nserror_code(
                                 code,
                                 &domain.to_string(),
@@ -436,7 +438,9 @@ unsafe extern "C" fn mount_callback(
         let mp = unsafe { CStr::from_ptr(mountpoint).to_string_lossy().to_string() };
         Ok(PathBuf::from(mp))
     } else {
-        Err(FskitError::MountFailed("No mountpoint returned".to_string()))
+        Err(FskitError::MountFailed(
+            "No mountpoint returned".to_string(),
+        ))
     };
 
     let _ = tx.send(result);
@@ -476,9 +480,7 @@ unsafe extern "C" fn ping_callback(alive: bool, context: *mut c_void) {
 }
 
 /// Parse a mount list from NSArray of NSDictionary.
-fn parse_mount_list(
-    array: &NSArray<NSDictionary<NSString, AnyObject>>,
-) -> Vec<MountInfo> {
+fn parse_mount_list(array: &NSArray<NSDictionary<NSString, AnyObject>>) -> Vec<MountInfo> {
     let mut mounts = Vec::new();
 
     for dict in array {

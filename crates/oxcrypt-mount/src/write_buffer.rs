@@ -308,7 +308,11 @@ mod tests {
 
     #[test]
     fn test_write_buffer_read() {
-        let buf = WriteBuffer::new(test_dir_id(), "test.txt".to_string(), b"hello world".to_vec());
+        let buf = WriteBuffer::new(
+            test_dir_id(),
+            "test.txt".to_string(),
+            b"hello world".to_vec(),
+        );
         assert_eq!(buf.read(0, 5), b"hello");
         assert_eq!(buf.read(6, 5), b"world");
         assert_eq!(buf.read(6, 100), b"world"); // Clamped to end
@@ -436,7 +440,10 @@ mod tests {
         assert_eq!(buf.len(), 3, "Zero-length write should not change length");
         assert_eq!(buf.content(), &[1, 2, 3], "Content should be unchanged");
         // Note: Current impl marks dirty even on zero-length write (line 102)
-        assert!(buf.is_dirty(), "Current behavior: zero-length write marks dirty");
+        assert!(
+            buf.is_dirty(),
+            "Current behavior: zero-length write marks dirty"
+        );
 
         // Zero-length write past end should NOT extend buffer
         let mut buf2 = WriteBuffer::new(test_dir_id(), "f".into(), vec![1, 2, 3]);
@@ -481,7 +488,11 @@ mod tests {
         let taken = buf.take_content_for_flush();
 
         // During flush window, buffer appears empty
-        assert_eq!(buf.read(0, 10), &[] as &[u8], "Read returns empty during flush window");
+        assert_eq!(
+            buf.read(0, 10),
+            &[] as &[u8],
+            "Read returns empty during flush window"
+        );
         assert_eq!(buf.len(), 0, "Length is 0 during flush window");
         assert!(buf.is_empty(), "is_empty() true during flush window");
         // Note: dirty flag is preserved during window

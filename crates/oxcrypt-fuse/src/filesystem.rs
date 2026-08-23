@@ -369,12 +369,11 @@ impl HazardousHandler {
     }
 
     fn wait_pending_writes(&self, ino: u64) -> Result<(), c_int> {
-        if let Some(ref shared) = self.scheduler_shared {
-            if shared.has_pending_writes(ino) {
-                if !shared.wait_pending_writes(ino, self.write_timeout) {
-                    return Err(libc::ETIMEDOUT);
-                }
-            }
+        if let Some(ref shared) = self.scheduler_shared
+            && shared.has_pending_writes(ino)
+            && !shared.wait_pending_writes(ino, self.write_timeout)
+        {
+            return Err(libc::ETIMEDOUT);
         }
         Ok(())
     }
@@ -443,10 +442,10 @@ impl HazardousHandler {
             let ops = Arc::clone(&self.ops);
             let delete_result =
                 self.exec(async move { ops.delete_file(&deferred.dir_id, &deferred.name).await });
-            if let Ok(Ok(())) = delete_result {
-                if let Some(path) = file_path {
-                    self.inodes.invalidate_path(&path);
-                }
+            if let Ok(Ok(())) = delete_result
+                && let Some(path) = file_path
+            {
+                self.inodes.invalidate_path(&path);
             }
         }
 
@@ -653,10 +652,6 @@ impl HazardousHandler {
 
                 let attr = match file_type {
                     FileType::Directory => self.make_dir_attr(entry_inode, None),
-                    FileType::RegularFile => {
-                        let effective_size = self.effective_file_size(entry_inode, size);
-                        self.make_file_attr(entry_inode, effective_size, None)
-                    }
                     FileType::Symlink => self.make_symlink_attr(entry_inode, size, None),
                     _ => {
                         let effective_size = self.effective_file_size(entry_inode, size);
@@ -1018,7 +1013,7 @@ impl CryptomatorFS {
     /// snapshots even after the filesystem is moved into a FUSE session.
     /// Returns `None` if the scheduler hasn't been initialized.
     pub fn scheduler_stats_collector(&self) -> Option<crate::scheduler::SchedulerStatsCollector> {
-        self.scheduler.as_ref().map(|s| s.stats_collector())
+        self.scheduler.as_ref().map(FuseScheduler::stats_collector)
     }
 
     /// Creates a new CryptomatorFS with custom UID/GID.
@@ -1479,9 +1474,9 @@ impl CryptomatorFS {
         dir_id: &DirId,
     ) -> FuseResult<Option<(u64, FileAttr, FileType)>> {
         // Try non-blocking lock
-        let _guard = match self.ops.try_directory_read_sync(dir_id) {
-            Some(g) => g,
-            None => return Ok(None), // Contended → use async path
+        // Contended → use async path
+        let Some(_guard) = self.ops.try_directory_read_sync(dir_id) else {
+            return Ok(None);
         };
 
         // Get sync ops (cached)
@@ -1628,13 +1623,15 @@ impl CryptomatorFS {
         // This reduces 3 sequential network round-trips to 1 parallel operation
         // Uses async bridge to prevent slow cloud storage from blocking FUSE thread
         let dir_id_for_lookup = dir_id.clone();
-        let (file_result, dir_result, symlink_result) = self.exec(async move {
-            tokio::join!(
-                ops.find_file(&dir_id_for_lookup, &name_owned),
-                ops.find_directory(&dir_id_for_lookup, &name_owned),
-                ops.find_symlink(&dir_id_for_lookup, &name_owned)
-            )
-        }).map_err(FuseError::Bridge)?;
+        let (file_result, dir_result, symlink_result) = self
+            .exec(async move {
+                tokio::join!(
+                    ops.find_file(&dir_id_for_lookup, &name_owned),
+                    ops.find_directory(&dir_id_for_lookup, &name_owned),
+                    ops.find_symlink(&dir_id_for_lookup, &name_owned)
+                )
+            })
+            .map_err(FuseError::Bridge)?;
 
         // Check file result first (most common case)
 
@@ -1757,9 +1754,8 @@ impl CryptomatorFS {
         };
 
         // FUSE guarantees offset_out is non-negative
-        #[allow(clippy::cast_sign_loss)]
         let old_size = buffer.len();
-        let bytes_written = buffer.write(offset_out as u64, data);
+        let bytes_written = buffer.write(u64::try_from(offset_out).unwrap_or(0), data);
         let new_size = buffer.len();
         drop(handle);
 
@@ -1772,10 +1768,10 @@ impl CryptomatorFS {
             scheduler.invalidate_read_cache_inode(ino_out);
         }
         // Track write bytes for budget enforcement (delta only)
-        if let Some(ref scheduler) = self.scheduler {
-            if new_size > old_size {
-                scheduler.add_write_bytes(ino_out, new_size - old_size);
-            }
+        if let Some(ref scheduler) = self.scheduler
+            && new_size > old_size
+        {
+            scheduler.add_write_bytes(ino_out, new_size - old_size);
         }
 
         // FUSE kernel caps request sizes well below u32::MAX in practice.
@@ -2300,9 +2296,8 @@ impl Filesystem for CryptomatorFS {
                 // Async read path: loan reader to scheduler, return immediately
                 // Take the reader by replacing with ReaderLoaned placeholder
                 let old_handle = std::mem::replace(&mut *handle, FuseHandle::ReaderLoaned);
-                let reader = match old_handle {
-                    FuseHandle::Reader(r) => r,
-                    _ => unreachable!("just matched Reader variant"),
+                let FuseHandle::Reader(reader) = old_handle else {
+                    unreachable!("just matched Reader variant")
                 };
 
                 // Drop the handle lock before enqueuing to avoid deadlock
@@ -2332,14 +2327,12 @@ impl Filesystem for CryptomatorFS {
                         warn!(error = %e, fh, "Failed to enqueue read request (scheduler replied with error)");
                     }
                 }
-                return;
             }
             FuseHandle::ReaderLoaned => {
                 // Reader is currently being used by the scheduler for a previous read
                 // Return EAGAIN to tell the kernel to retry
                 trace!(fh, "Read while reader is loaned, returning EAGAIN");
                 reply.error(libc::EAGAIN);
-                return;
             }
             FuseHandle::ReadBuffer(content) => {
                 // Read from in-memory buffer (preferred path, no locks held)
@@ -2462,37 +2455,45 @@ impl Filesystem for CryptomatorFS {
     ///
     /// Uses `get_or_insert_no_lookup_inc()` which allocates or retrieves inodes WITHOUT
     /// incrementing the nlookup count, as required by the FUSE specification.
-            fn readdir(
-                &mut self,
-                _req: &Request<'_>,
-                ino: u64,
-                fh: u64,
-                offset: i64,
-                mut reply: ReplyDirectory,
-            ) {
+    fn readdir(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        mut reply: ReplyDirectory,
+    ) {
         // FAST PATH: Check dir_cache before enqueueing to scheduler.
         // This avoids scheduler overhead for cached directory listings.
         if let Some(cached_entries) = self.dir_cache.get(ino) {
-            trace!(inode = ino, offset = offset, entries = cached_entries.len(), "readdir cache hit - fast path");
+            trace!(
+                inode = ino,
+                offset = offset,
+                entries = cached_entries.len(),
+                "readdir cache hit - fast path"
+            );
 
             // Look up parent inode for ".." entry
-            let parent_inode = self.inodes.get(ino)
+            let parent_inode = self
+                .inodes
+                .get(ino)
                 .and_then(|entry| entry.path.parent())
                 .and_then(|parent| self.inodes.get_inode(&parent))
                 .unwrap_or(crate::inode::ROOT_INODE);
 
             // Get dir_id for "." entry
-            let dir_id = self.inodes.get(ino)
-                .and_then(|entry| entry.dir_id());
+            let dir_id = self.inodes.get(ino).and_then(|entry| entry.dir_id());
 
             // Build full entry list with "." and ".."
             let mut all_entries: Vec<(String, FileType, Option<DirId>)> = vec![
                 (".".to_string(), FileType::Directory, dir_id),
                 ("..".to_string(), FileType::Directory, None),
             ];
-            all_entries.extend(cached_entries.iter().map(|e| {
-                (e.name.clone(), e.file_type, e.dir_id.clone())
-            }));
+            all_entries.extend(
+                cached_entries
+                    .iter()
+                    .map(|e| (e.name.clone(), e.file_type, e.dir_id.clone())),
+            );
             all_entries.sort_by(|a, b| a.0.cmp(&b.0));
 
             // Find starting position based on offset
@@ -2513,16 +2514,19 @@ impl Filesystem for CryptomatorFS {
                     parent_inode
                 } else {
                     // Get or create inode for entry (no nlookup increment for readdir)
-                    let entry_path = self.inodes.get(ino)
-                        .map(|e| e.path.join(&name))
-                        .unwrap_or_else(VaultPath::root);
+                    let entry_path = self
+                        .inodes
+                        .get(ino)
+                        .map_or_else(VaultPath::root, |e| e.path.join(&name));
                     let kind = match file_type {
                         FileType::Directory => InodeKind::Directory {
                             dir_id: maybe_subdir_id.unwrap_or_else(DirId::root),
                         },
                         FileType::Symlink => {
                             // For symlinks we need to look up the dir_id from parent
-                            let parent_dir_id = self.inodes.get(ino)
+                            let parent_dir_id = self
+                                .inodes
+                                .get(ino)
                                 .and_then(|e| e.dir_id())
                                 .unwrap_or_else(DirId::root);
                             InodeKind::Symlink {
@@ -2531,7 +2535,9 @@ impl Filesystem for CryptomatorFS {
                             }
                         }
                         _ => {
-                            let parent_dir_id = self.inodes.get(ino)
+                            let parent_dir_id = self
+                                .inodes
+                                .get(ino)
                                 .and_then(|e| e.dir_id())
                                 .unwrap_or_else(DirId::root);
                             InodeKind::File {
@@ -2555,7 +2561,11 @@ impl Filesystem for CryptomatorFS {
         }
 
         // SLOW PATH: Cache miss - enqueue to scheduler
-        trace!(inode = ino, offset = offset, "readdir cache miss - enqueuing to scheduler");
+        trace!(
+            inode = ino,
+            offset = offset,
+            "readdir cache miss - enqueuing to scheduler"
+        );
 
         let op = HazardousOp::Readdir { ino, fh, offset };
         let reply_handle = HazardousReply::Directory(reply);
@@ -2590,16 +2600,20 @@ impl Filesystem for CryptomatorFS {
     ///
     /// - Correctly increments nlookup via `get_or_insert()` for non-. entries
     /// - "." and ".." use existing inodes without incrementing nlookup
-            fn readdirplus(
-                &mut self,
-                _req: &Request<'_>,
-                ino: u64,
-                fh: u64,
-                offset: i64,
-                reply: ReplyDirectoryPlus,
-            ) {
-                trace!(inode = ino, offset = offset, "readdirplus (enqueuing to hazardous lane)");
-        
+    fn readdirplus(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        reply: ReplyDirectoryPlus,
+    ) {
+        trace!(
+            inode = ino,
+            offset = offset,
+            "readdirplus (enqueuing to hazardous lane)"
+        );
+
         let op = HazardousOp::ReaddirPlus { ino, fh, offset };
         let reply_handle = HazardousReply::DirectoryPlus(reply);
 
@@ -2818,14 +2832,14 @@ impl Filesystem for CryptomatorFS {
                         );
                         let old_size = buffer.len();
                         buffer.truncate(new_size);
-                        if new_size < old_size {
-                            if let Some(ref scheduler) = self.scheduler {
-                                let shrink = old_size - new_size;
-                                let current = scheduler.file_write_bytes(ino);
-                                let release = shrink.min(current);
-                                if release > 0 {
-                                    scheduler.release_write_bytes(ino, release);
-                                }
+                        if new_size < old_size
+                            && let Some(ref scheduler) = self.scheduler
+                        {
+                            let shrink = old_size - new_size;
+                            let current = scheduler.file_write_bytes(ino);
+                            let release = shrink.min(current);
+                            if release > 0 {
+                                scheduler.release_write_bytes(ino, release);
                             }
                         }
 
@@ -3358,7 +3372,7 @@ impl Filesystem for CryptomatorFS {
             return;
         };
 
-        let Some(buffer) = handle.as_write_buffer_mut() else {
+        let Some(_buffer) = handle.as_write_buffer_mut() else {
             // Trying to write to a read-only handle
             reply.error(libc::EBADF);
             return;
@@ -3372,8 +3386,7 @@ impl Filesystem for CryptomatorFS {
                 // Budget exceeded - auto-flush to release budget before rejecting
                 debug!(
                     ino,
-                    write_size,
-                    "Write budget exceeded, auto-flushing to release budget"
+                    write_size, "Write budget exceeded, auto-flushing to release budget"
                 );
                 drop(handle); // Release lock before flushing
 
@@ -3399,14 +3412,10 @@ impl Filesystem for CryptomatorFS {
                 handle = reacquired;
 
                 // Re-check that we still have a write buffer
-                let Some(rebuffer) = handle.as_write_buffer_mut() else {
+                if handle.as_write_buffer_mut().is_none() {
                     reply.error(libc::EBADF);
                     return;
-                };
-
-                // Rebind buffer for the rest of the function
-                // (We need to shadow the outer `buffer` binding)
-                drop(rebuffer);
+                }
             }
         }
 
@@ -3434,10 +3443,10 @@ impl Filesystem for CryptomatorFS {
 
         // Track write bytes for budget enforcement
         // Only track the delta (new bytes added), not overwrites
-        if let Some(ref scheduler) = self.scheduler {
-            if new_size > old_size {
-                scheduler.add_write_bytes(ino, (new_size - old_size) as u64);
-            }
+        if let Some(ref scheduler) = self.scheduler
+            && new_size > old_size
+        {
+            scheduler.add_write_bytes(ino, new_size - old_size);
         }
 
         // Invalidate attr cache for this inode (will be recalculated with effective_file_size)
@@ -5039,9 +5048,8 @@ impl Filesystem for CryptomatorFS {
                 // Async copy path: loan reader to scheduler, return immediately
                 // Take the reader by replacing with ReaderLoaned placeholder
                 let old_handle = std::mem::replace(&mut *handle_in, FuseHandle::ReaderLoaned);
-                let reader = match old_handle {
-                    FuseHandle::Reader(r) => r,
-                    _ => unreachable!("just matched Reader variant"),
+                let FuseHandle::Reader(reader) = old_handle else {
+                    unreachable!("just matched Reader variant")
                 };
 
                 // Drop the handle lock before enqueuing to avoid deadlock
@@ -5090,7 +5098,6 @@ impl Filesystem for CryptomatorFS {
                         );
                     }
                 }
-                return;
             }
             FuseHandle::ReaderLoaned => {
                 // Reader is busy with async operation - return EAGAIN
@@ -5099,7 +5106,6 @@ impl Filesystem for CryptomatorFS {
                     "copy_file_range while reader is loaned, returning EAGAIN"
                 );
                 reply.error(libc::EAGAIN);
-                return;
             }
             FuseHandle::ReadBuffer(content) => {
                 // Synchronous path for in-memory buffers (fast)
@@ -5115,7 +5121,6 @@ impl Filesystem for CryptomatorFS {
                 };
                 drop(handle_in);
                 self.copy_file_range_write_dest(ino_out, fh_out, offset_out, &data, reply);
-                return;
             }
             FuseHandle::WriteBuffer(buffer) => {
                 // Synchronous path for in-memory buffers (fast)

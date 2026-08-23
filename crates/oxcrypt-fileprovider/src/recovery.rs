@@ -122,7 +122,10 @@ impl RecoveryManager {
             return false;
         };
 
-        info!("Attempting to recover domain: {} ({})", info.display_name, domain_id);
+        info!(
+            "Attempting to recover domain: {} ({})",
+            info.display_name, domain_id
+        );
 
         // Try to unregister first (clean up any stale registration)
         if let Err(e) = self.client.unregister_domain(domain_id) {
@@ -199,11 +202,17 @@ impl RecoveryManager {
                         // The app will need to prompt the user or retrieve from keychain
                     }
                     DomainHealth::Missing => {
-                        warn!("Domain {} is not registered with the system", info.display_name);
+                        warn!(
+                            "Domain {} is not registered with the system",
+                            info.display_name
+                        );
                         // Note: We can't auto-recover without the password
                     }
                     DomainHealth::Unknown => {
-                        debug!("Unable to determine health for domain {}", info.display_name);
+                        debug!(
+                            "Unable to determine health for domain {}",
+                            info.display_name
+                        );
                     }
                 }
             }

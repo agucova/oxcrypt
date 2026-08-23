@@ -34,7 +34,11 @@ pub struct ConfirmDialogProps {
 /// A reusable confirmation dialog component
 #[component]
 pub fn ConfirmDialog(props: ConfirmDialogProps) -> Element {
-    let confirm_class = if props.danger { "btn-danger" } else { "btn-primary" };
+    let confirm_class = if props.danger {
+        "btn-danger"
+    } else {
+        "btn-primary"
+    };
 
     rsx! {
         // Backdrop

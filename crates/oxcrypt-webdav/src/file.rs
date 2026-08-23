@@ -286,7 +286,8 @@ impl DavFile for CryptomatorFile {
 
                         h.stats.start_write();
                         let start = Instant::now();
-                        let result = h.ops
+                        let result = h
+                            .ops
                             .write_file(&dir_id, &filename, &content)
                             .await
                             .map_err(write_error_to_fs_error);

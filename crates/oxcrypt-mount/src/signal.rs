@@ -6,8 +6,8 @@
 //!
 //! Handles SIGINT, SIGTERM, and SIGHUP (terminal hangup).
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use parking_lot::{Condvar, Mutex};

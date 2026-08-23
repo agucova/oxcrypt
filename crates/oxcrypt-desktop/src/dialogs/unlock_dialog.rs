@@ -54,7 +54,10 @@ pub fn UnlockDialog(props: UnlockDialogProps) -> Element {
                     dialog_state.set(DialogState::Idle);
                 }
                 Err(msg) => {
-                    tracing::info!("[UNLOCK_DIALOG] Received error, updating dialog state: {}", msg);
+                    tracing::info!(
+                        "[UNLOCK_DIALOG] Received error, updating dialog state: {}",
+                        msg
+                    );
                     dialog_state.set(DialogState::Error(msg.clone()));
                 }
             }
@@ -204,4 +207,3 @@ pub fn UnlockDialog(props: UnlockDialogProps) -> Element {
         }
     }
 }
-

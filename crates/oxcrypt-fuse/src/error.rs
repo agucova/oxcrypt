@@ -2,7 +2,7 @@
 //!
 //! This module provides conversion from vault errors to POSIX error codes
 //! that FUSE can return to the kernel. It uses the shared
-//! [`VaultErrorCategory`](oxcrypt_mount::VaultErrorCategory) for
+//! [`VaultErrorCategory`] for
 //! consistent error mapping.
 
 use crate::async_bridge::BridgeError;

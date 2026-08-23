@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use rpassword::read_password;
 use std::io::{self, Write};
 

@@ -22,9 +22,9 @@
 //! ```
 
 use oxcrypt_fskit::{
-    crypto_fs_new, CryptoFilesystem, DirectoryEntry, FileAttributes, VolumeStatistics,
+    CryptoFilesystem, DirectoryEntry, FileAttributes, VolumeStatistics, crypto_fs_new,
 };
-use oxcrypt_mount::testing::{TempVault, TEST_PASSWORD};
+use oxcrypt_mount::testing::{TEST_PASSWORD, TempVault};
 
 /// Test wrapper around `CryptoFilesystem` for ergonomic testing.
 ///

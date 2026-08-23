@@ -3,7 +3,9 @@
 use crate::bench::{Benchmark, BenchmarkResult, PhaseProgress};
 use crate::config::{BenchmarkConfig, FileSize, Implementation};
 use crate::mount::{ensure_mount_point, mount_implementation};
-use crate::results::{compute_stats, BenchmarkPrinter, LiveProgressReporter, PhaseProgressReporter};
+use crate::results::{
+    BenchmarkPrinter, LiveProgressReporter, PhaseProgressReporter, compute_stats,
+};
 use anyhow::{Context, Result};
 use oxcrypt_mount::signal;
 use std::path::PathBuf;
@@ -91,9 +93,7 @@ impl BenchmarkRunner {
         }
 
         // Try interactive sudo -v
-        let interactive = std::process::Command::new("sudo")
-            .arg("-v")
-            .status();
+        let interactive = std::process::Command::new("sudo").arg("-v").status();
 
         match interactive {
             Ok(status) if status.success() => {
@@ -167,11 +167,11 @@ impl BenchmarkRunner {
                 Implementation::OfficialCryptomator => {
                     eprintln!("Validating {} mount...", impl_type.short_name());
                 }
-                Implementation::OxidizedFileProvider => {
-                    eprintln!("Mounting {} (this may take a few seconds)...", impl_type.short_name());
-                }
                 _ => {
-                    eprintln!("Mounting {} (this may take a few seconds)...", impl_type.short_name());
+                    eprintln!(
+                        "Mounting {} (this may take a few seconds)...",
+                        impl_type.short_name()
+                    );
                 }
             }
 
@@ -223,17 +223,15 @@ impl BenchmarkRunner {
                 // potential inode table growth issues.
                 if benchmark.operation().is_workload()
                     && let Some(ref m) = mount
-                        && let Some(stats) = m.stats() {
-                            let inode_count = stats.get_inode_count();
-                            tracing::info!(
-                                "{} inode table size: {} entries",
-                                impl_type,
-                                inode_count
-                            );
-                        }
+                    && let Some(stats) = m.stats()
+                {
+                    let inode_count = stats.get_inode_count();
+                    tracing::info!("{} inode table size: {} entries", impl_type, inode_count);
+                }
 
                 // Get mount point before taking mutable reference to mount
-                let mount_point_path = mount.as_ref()
+                let mount_point_path = mount
+                    .as_ref()
                     .expect("Mount should be present")
                     .mount_point()
                     .to_path_buf();
@@ -288,10 +286,11 @@ impl BenchmarkRunner {
 
             // Print lock metrics if available (currently only FUSE backend supports this)
             if let Some(ref m) = mount
-                && let Some(metrics) = m.lock_metrics() {
-                    let snapshot = metrics.snapshot();
-                    snapshot.print();
-                }
+                && let Some(metrics) = m.lock_metrics()
+            {
+                let snapshot = metrics.snapshot();
+                snapshot.print();
+            }
 
             // Unmount before moving to next implementation
             tracing::debug!("Unmounting {}...", impl_type);
@@ -312,9 +311,11 @@ impl BenchmarkRunner {
         let sanitized_name = benchmark_name
             .replace(['/', ' ', ':', '(', ')'], "_")
             .replace("__", "_");
-        self.config
-            .flamegraph_dir
-            .join(format!("{}_{}.svg", impl_type.short_name().to_lowercase(), sanitized_name))
+        self.config.flamegraph_dir.join(format!(
+            "{}_{}.svg",
+            impl_type.short_name().to_lowercase(),
+            sanitized_name
+        ))
     }
 
     /// Ensure the flamegraph output directory exists.
@@ -332,10 +333,7 @@ impl BenchmarkRunner {
 
     /// Generate a flamegraph SVG from a pprof report.
     #[cfg(unix)]
-    fn write_flamegraph(
-        guard: &pprof::ProfilerGuard<'_>,
-        path: &std::path::Path,
-    ) -> Result<()> {
+    fn write_flamegraph(guard: &pprof::ProfilerGuard<'_>, path: &std::path::Path) -> Result<()> {
         let report = guard
             .report()
             .build()
@@ -491,7 +489,8 @@ impl BenchmarkRunner {
                 if self.should_stop() {
                     anyhow::bail!("Interrupted");
                 }
-                return Err(e).with_context(|| format!("Warmup setup failed for {}", benchmark.name()));
+                return Err(e)
+                    .with_context(|| format!("Warmup setup failed for {}", benchmark.name()));
             }
             let setup_elapsed = setup_start.elapsed();
             if setup_elapsed > SETUP_TIMEOUT {
@@ -621,12 +620,7 @@ impl BenchmarkRunner {
                     reporter.tick(duration);
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "Iteration {} of {} failed: {}",
-                        i + 1,
-                        benchmark.name(),
-                        e
-                    );
+                    tracing::warn!("Iteration {} of {} failed: {}", i + 1, benchmark.name(), e);
                 }
             }
 
@@ -656,11 +650,7 @@ impl BenchmarkRunner {
                     result.flamegraph_path = Some(flamegraph_path);
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "Failed to write flamegraph for {}: {}",
-                        benchmark.name(),
-                        e
-                    );
+                    tracing::warn!("Failed to write flamegraph for {}: {}", benchmark.name(), e);
                 }
             }
         }
@@ -861,12 +851,7 @@ impl BenchmarkRunner {
                     }
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "Iteration {} of {} failed: {}",
-                        i + 1,
-                        benchmark.name(),
-                        e
-                    );
+                    tracing::warn!("Iteration {} of {} failed: {}", i + 1, benchmark.name(), e);
                 }
             }
 
@@ -896,11 +881,7 @@ impl BenchmarkRunner {
                     result.flamegraph_path = Some(flamegraph_path);
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "Failed to write flamegraph for {}: {}",
-                        benchmark.name(),
-                        e
-                    );
+                    tracing::warn!("Failed to write flamegraph for {}: {}", benchmark.name(), e);
                 }
             }
         }

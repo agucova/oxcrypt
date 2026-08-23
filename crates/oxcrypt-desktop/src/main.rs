@@ -18,17 +18,17 @@ mod state;
 mod tray;
 mod windows;
 
-pub use platform::{current_platform, Platform};
+pub use platform::{Platform, current_platform};
 
 use crossbeam_channel::Receiver;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 #[cfg(feature = "tokio-console")]
 use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use menu::MenuBarEvent;
-use oxcrypt_mount::{cleanup_stale_mounts, CleanupAction, CleanupOptions, TrackedMountInfo};
+use oxcrypt_mount::{CleanupAction, CleanupOptions, TrackedMountInfo, cleanup_stale_mounts};
 use tray::{TrayEvent, TrayManager};
 
 /// Global tray event receiver for the app to poll
@@ -53,8 +53,8 @@ fn main() {
         // gets our custom filter while console uses its own.
         //
         // Use port 6670 for GUI to avoid conflicts with CLI tools using default 6669.
-        use tracing_subscriber::Layer;
         use std::net::SocketAddr;
+        use tracing_subscriber::Layer;
 
         let console_port: u16 = std::env::var("TOKIO_CONSOLE_PORT")
             .ok()
@@ -66,8 +66,8 @@ fn main() {
         // Check if port is available before starting console subscriber
         let port_available = std::net::TcpListener::bind(console_addr).is_ok();
 
-        let fmt_filter = EnvFilter::from_default_env()
-            .add_directive("oxcrypt_desktop=info".parse().unwrap());
+        let fmt_filter =
+            EnvFilter::from_default_env().add_directive("oxcrypt_desktop=info".parse().unwrap());
 
         if port_available {
             let console_layer = console_subscriber::ConsoleLayer::builder()
@@ -77,7 +77,10 @@ fn main() {
                 .with(console_layer)
                 .with(fmt::layer().with_filter(fmt_filter))
                 .init();
-            tracing::info!("tokio-console enabled, connect with: tokio-console http://127.0.0.1:{}", console_port);
+            tracing::info!(
+                "tokio-console enabled, connect with: tokio-console http://127.0.0.1:{}",
+                console_port
+            );
         } else {
             // Port in use - start without console subscriber
             tracing_subscriber::registry()
@@ -267,11 +270,7 @@ fn proactive_cleanup() -> anyhow::Result<()> {
                 );
             }
             CleanupAction::Skipped { reason } => {
-                tracing::debug!(
-                    "Skipped {}: {}",
-                    result.mountpoint.display(),
-                    reason
-                );
+                tracing::debug!("Skipped {}: {}", result.mountpoint.display(), reason);
             }
         }
     }
@@ -285,7 +284,10 @@ fn proactive_cleanup() -> anyhow::Result<()> {
 }
 
 /// Remove mountpoints from the state file with file locking.
-fn remove_from_state_file(state_path: &std::path::Path, mountpoints: &[PathBuf]) -> anyhow::Result<()> {
+fn remove_from_state_file(
+    state_path: &std::path::Path,
+    mountpoints: &[PathBuf],
+) -> anyhow::Result<()> {
     use fs2::FileExt;
     use std::fs::OpenOptions;
 

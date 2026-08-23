@@ -52,12 +52,7 @@ impl PhaseProgressReporter {
     ///
     /// Prints the benchmark header and initializes the progress bar.
     /// The `_total_phases` parameter is reserved for future use (sub-bar display).
-    pub fn new(
-        benchmark_name: &str,
-        impl_name: &str,
-        _total_phases: usize,
-        color: bool,
-    ) -> Self {
+    pub fn new(benchmark_name: &str, impl_name: &str, _total_phases: usize, color: bool) -> Self {
         use owo_colors::OwoColorize;
 
         // Print the benchmark header
@@ -141,7 +136,9 @@ impl PhaseProgressReporter {
 
             // Update estimated total items for better ETA
             // Estimate: items so far + remaining phases * current phase items
-            let remaining_phases = progress.total_phases.saturating_sub(progress.phase_index + 1);
+            let remaining_phases = progress
+                .total_phases
+                .saturating_sub(progress.phase_index + 1);
             let estimated_remaining = remaining_phases * total;
             state.estimated_total_items =
                 state.cumulative_items + completed + estimated_remaining + (total - completed);

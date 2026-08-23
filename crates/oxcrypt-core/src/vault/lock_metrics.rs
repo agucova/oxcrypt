@@ -190,7 +190,7 @@ impl LockMetricsSnapshot {
                 0.0
             }
         );
-        println!("  Hit Rate: {:.1}%", hit_rate);
+        println!("  Hit Rate: {hit_rate:.1}%");
 
         println!("\nAsync Path:");
         println!("  Acquisitions: {:>10}", self.async_acquisitions);
@@ -208,8 +208,8 @@ impl LockMetricsSnapshot {
         if self.blocking_tasks > 0 {
             let avg_ms = (self.blocking_time_ns as f64 / self.blocking_tasks as f64) / 1_000_000.0;
             let total_s = self.blocking_time_ns as f64 / 1_000_000_000.0;
-            println!("  Avg Time:  {:>10.2} ms", avg_ms);
-            println!("  Total Time:{:>10.2} s", total_s);
+            println!("  Avg Time:  {avg_ms:>10.2} ms");
+            println!("  Total Time:{total_s:>10.2} s");
         }
 
         println!("\nFile Handle Operations:");

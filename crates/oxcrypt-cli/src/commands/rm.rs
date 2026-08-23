@@ -1,9 +1,9 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::Args as ClapArgs;
 use tracing::instrument;
 
-use oxcrypt_core::vault::path::EntryType;
 use oxcrypt_core::vault::operations::VaultOperations;
+use oxcrypt_core::vault::path::EntryType;
 
 use super::normalize_path;
 

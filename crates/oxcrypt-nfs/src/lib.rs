@@ -49,6 +49,6 @@ mod filesystem;
 mod inode;
 
 pub use backend::{NfsBackend, NfsMountHandle};
-pub use error::{category_to_nfsstat, vault_error_to_nfsstat, NfsError};
+pub use error::{NfsError, category_to_nfsstat, vault_error_to_nfsstat};
 pub use filesystem::CryptomatorNFS;
 pub use inode::{InodeEntry, InodeKind, NfsInodeTable, ROOT_FILEID};

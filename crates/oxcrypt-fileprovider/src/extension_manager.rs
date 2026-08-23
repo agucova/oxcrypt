@@ -1,6 +1,6 @@
 //! Extension lifecycle management - installation, verification, and updates
 
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
@@ -9,24 +9,33 @@ use std::sync::Mutex;
 use thiserror::Error;
 
 /// Embedded extension bundle (compile-time embedding via include_dir!)
-static EXTENSION_BUNDLE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/extension/build/OxCryptFileProvider.app");
+static EXTENSION_BUNDLE: Dir<'_> =
+    include_dir!("$CARGO_MANIFEST_DIR/extension/build/OxCryptFileProvider.app");
 
 /// Compile-time extension hash for integrity verification
 const EXTENSION_SHA256: &str = env!("EXTENSION_SHA256");
 
-
 /// Installation errors
 #[derive(Debug, Error)]
 pub enum InstallError {
+    /// No extension bundle was embedded into the binary at compile time.
     #[error("Extension bundle not embedded at compile time")]
     NotEmbedded,
 
+    /// A filesystem operation failed during installation or verification.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// The installed extension's hash does not match the embedded bundle's hash.
     #[error("Integrity check failed: expected {expected}, got {actual}")]
-    IntegrityFailure { expected: String, actual: String },
+    IntegrityFailure {
+        /// SHA-256 hash of the bundle recorded at compile time.
+        expected: String,
+        /// SHA-256 hash computed from the installed extension.
+        actual: String,
+    },
 
+    /// The installation directory could not be determined.
     #[error("Installation location unavailable: {0}")]
     LocationUnavailable(String),
 }
@@ -118,7 +127,10 @@ impl ExtensionManager {
             return Ok(());
         }
 
-        tracing::info!("Installing FileProvider extension to {:?}", self.install_path);
+        tracing::info!(
+            "Installing FileProvider extension to {:?}",
+            self.install_path
+        );
 
         // Create parent directory
         if let Some(parent) = self.install_path.parent() {
@@ -140,11 +152,11 @@ impl ExtensionManager {
         }
 
         tracing::info!("Starting bundle extraction...");
-        self.extract_bundle(&temp_path)?;
+        Self::extract_bundle(&temp_path)?;
 
         // Remove quarantine attribute on macOS
         #[cfg(target_os = "macos")]
-        self.remove_quarantine(&temp_path)?;
+        Self::remove_quarantine(&temp_path)?;
 
         // Atomic rename
         if self.install_path.exists() {
@@ -161,7 +173,7 @@ impl ExtensionManager {
     }
 
     /// Extract embedded bundle to target path
-    fn extract_bundle(&self, target: &Path) -> Result<(), InstallError> {
+    fn extract_bundle(target: &Path) -> Result<(), InstallError> {
         let entry_count = EXTENSION_BUNDLE.entries().len();
         tracing::debug!("Extension bundle has {} top-level entries", entry_count);
 
@@ -199,7 +211,7 @@ impl ExtensionManager {
 
     /// Remove macOS quarantine attribute
     #[cfg(target_os = "macos")]
-    fn remove_quarantine(&self, path: &Path) -> Result<(), InstallError> {
+    fn remove_quarantine(path: &Path) -> Result<(), InstallError> {
         use std::process::Command;
 
         let output = Command::new("xattr")
@@ -256,7 +268,7 @@ fn extract_dir(dir: &Dir<'_>, target: &Path) -> Result<(), InstallError> {
         let entry_name = entry.path().file_name().ok_or_else(|| {
             InstallError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("Invalid entry path: {:?}", entry.path()),
+                format!("Invalid entry path: {}", entry.path().display()),
             ))
         })?;
         let target_path = target.join(entry_name);
@@ -274,12 +286,12 @@ fn extract_dir(dir: &Dir<'_>, target: &Path) -> Result<(), InstallError> {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                if let Some(parent) = target_path.parent() {
-                    if parent.ends_with("MacOS") {
-                        let mut perms = fs::metadata(&target_path)?.permissions();
-                        perms.set_mode(0o755);
-                        fs::set_permissions(&target_path, perms)?;
-                    }
+                if let Some(parent) = target_path.parent()
+                    && parent.ends_with("MacOS")
+                {
+                    let mut perms = fs::metadata(&target_path)?.permissions();
+                    perms.set_mode(0o755);
+                    fs::set_permissions(&target_path, perms)?;
                 }
             }
         } else if let Some(subdir) = entry.as_dir() {
@@ -295,13 +307,13 @@ fn compute_directory_hash(dir: &Path) -> Result<String, InstallError> {
     let mut hasher = Sha256::new();
     hash_directory(&mut hasher, dir)?;
     let result = hasher.finalize();
-    Ok(format!("{:x}", result))
+    Ok(format!("{result:x}"))
 }
 
 /// Recursively hash directory contents
 fn hash_directory(hasher: &mut Sha256, dir: &Path) -> Result<(), InstallError> {
     let mut entries: Vec<_> = fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-    entries.sort_by_key(|e| e.path());
+    entries.sort_by_key(fs::DirEntry::path);
 
     for entry in entries {
         let path = entry.path();

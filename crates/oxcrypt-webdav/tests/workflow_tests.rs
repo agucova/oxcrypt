@@ -8,7 +8,10 @@
 
 mod common;
 
-use common::{assert_file_content, assert_not_found, multi_chunk_content, one_chunk_content, random_bytes, sha256, TestServer, CHUNK_SIZE};
+use common::{
+    CHUNK_SIZE, TestServer, assert_file_content, assert_not_found, multi_chunk_content,
+    one_chunk_content, random_bytes, sha256,
+};
 use reqwest::StatusCode;
 
 // ============================================================================
@@ -23,7 +26,9 @@ async fn test_create_populate_delete_cycle() {
     server.mkcol_ok("/project").await;
 
     // Add files
-    server.put_ok("/project/readme.txt", b"Project README".to_vec()).await;
+    server
+        .put_ok("/project/readme.txt", b"Project README".to_vec())
+        .await;
     server.put_ok("/project/config.json", b"{}".to_vec()).await;
     server.put_ok("/project/data.bin", random_bytes(5000)).await;
 
@@ -32,7 +37,9 @@ async fn test_create_populate_delete_cycle() {
     assert_file_content(&server, "/project/config.json", b"{}").await;
 
     // Modify one file
-    server.put_ok("/project/config.json", b"{\"version\": 2}".to_vec()).await;
+    server
+        .put_ok("/project/config.json", b"{\"version\": 2}".to_vec())
+        .await;
     assert_file_content(&server, "/project/config.json", b"{\"version\": 2}").await;
 
     // Delete one file
@@ -55,9 +62,15 @@ async fn test_nested_directory_full_lifecycle() {
 
     // Add files at each level
     server.put_ok("/root/file0.txt", b"level 0".to_vec()).await;
-    server.put_ok("/root/level1/file1.txt", b"level 1".to_vec()).await;
-    server.put_ok("/root/level1/level2/file2.txt", b"level 2".to_vec()).await;
-    server.put_ok("/root/level1/level2/level3/file3.txt", b"level 3".to_vec()).await;
+    server
+        .put_ok("/root/level1/file1.txt", b"level 1".to_vec())
+        .await;
+    server
+        .put_ok("/root/level1/level2/file2.txt", b"level 2".to_vec())
+        .await;
+    server
+        .put_ok("/root/level1/level2/level3/file3.txt", b"level 3".to_vec())
+        .await;
 
     // Verify all files
     assert_file_content(&server, "/root/file0.txt", b"level 0").await;
@@ -66,8 +79,10 @@ async fn test_nested_directory_full_lifecycle() {
     assert_file_content(&server, "/root/level1/level2/level3/file3.txt", b"level 3").await;
 
     // Delete from bottom up
-    server.delete_ok("/root/level1/level2/level3/file3.txt").await;
-    server.delete("/root/level1/level2/level3").await;  // May fail if not empty
+    server
+        .delete_ok("/root/level1/level2/level3/file3.txt")
+        .await;
+    server.delete("/root/level1/level2/level3").await; // May fail if not empty
 
     // Parent files still exist
     assert_file_content(&server, "/root/level1/level2/file2.txt", b"level 2").await;
@@ -78,7 +93,9 @@ async fn test_file_replace_workflow() {
     let server = TestServer::with_temp_vault().await;
 
     // Create file
-    server.put_ok("/replaceable.txt", b"version 1".to_vec()).await;
+    server
+        .put_ok("/replaceable.txt", b"version 1".to_vec())
+        .await;
     assert_file_content(&server, "/replaceable.txt", b"version 1").await;
 
     // Delete and recreate with same name
@@ -86,7 +103,9 @@ async fn test_file_replace_workflow() {
     assert_not_found(&server, "/replaceable.txt").await;
 
     // Recreate with different content
-    server.put_ok("/replaceable.txt", b"version 2 - new".to_vec()).await;
+    server
+        .put_ok("/replaceable.txt", b"version 2 - new".to_vec())
+        .await;
     assert_file_content(&server, "/replaceable.txt", b"version 2 - new").await;
 }
 
@@ -101,10 +120,14 @@ async fn test_backup_workflow() {
     // Create original file
     let original_content = random_bytes(10000);
     let original_hash = sha256(&original_content);
-    server.put_ok("/document.dat", original_content.clone()).await;
+    server
+        .put_ok("/document.dat", original_content.clone())
+        .await;
 
     // Create backup via COPY
-    let resp = server.copy("/document.dat", "/document.dat.backup", false).await;
+    let resp = server
+        .copy("/document.dat", "/document.dat.backup", false)
+        .await;
     assert!(
         resp.status().is_success() || resp.status() == StatusCode::CREATED,
         "Backup copy failed"
@@ -117,11 +140,19 @@ async fn test_backup_workflow() {
 
     // Verify backup unchanged
     let backup = server.get_bytes("/document.dat.backup").await.unwrap();
-    assert_eq!(sha256(&backup), original_hash, "Backup should have original content");
+    assert_eq!(
+        sha256(&backup),
+        original_hash,
+        "Backup should have original content"
+    );
 
     // Verify original changed
     let current = server.get_bytes("/document.dat").await.unwrap();
-    assert_eq!(sha256(&current), modified_hash, "Original should be modified");
+    assert_eq!(
+        sha256(&current),
+        modified_hash,
+        "Original should be modified"
+    );
 }
 
 #[tokio::test]
@@ -129,16 +160,24 @@ async fn test_restore_from_backup() {
     let server = TestServer::with_temp_vault().await;
 
     // Create original
-    server.put_ok("/important.txt", b"important data v1".to_vec()).await;
+    server
+        .put_ok("/important.txt", b"important data v1".to_vec())
+        .await;
 
     // Backup
-    server.copy("/important.txt", "/important.txt.bak", false).await;
+    server
+        .copy("/important.txt", "/important.txt.bak", false)
+        .await;
 
     // Corrupt original (simulate)
-    server.put_ok("/important.txt", b"corrupted!".to_vec()).await;
+    server
+        .put_ok("/important.txt", b"corrupted!".to_vec())
+        .await;
 
     // Restore from backup
-    server.copy("/important.txt.bak", "/important.txt", true).await;
+    server
+        .copy("/important.txt.bak", "/important.txt", true)
+        .await;
 
     // Verify restored
     assert_file_content(&server, "/important.txt", b"important data v1").await;
@@ -173,8 +212,12 @@ async fn test_move_directory_with_contents() {
 
     // Create source tree
     server.mkcol_ok("/source").await;
-    server.put_ok("/source/file1.txt", b"content1".to_vec()).await;
-    server.put_ok("/source/file2.txt", b"content2".to_vec()).await;
+    server
+        .put_ok("/source/file1.txt", b"content1".to_vec())
+        .await;
+    server
+        .put_ok("/source/file2.txt", b"content2".to_vec())
+        .await;
 
     // Move entire directory
     let resp = server.move_("/source", "/destination", false).await;
@@ -310,11 +353,17 @@ async fn test_document_editing_session() {
     let server = TestServer::with_temp_vault().await;
 
     // Open (create) document
-    server.put_ok("/document.txt", b"Hello, World!".to_vec()).await;
+    server
+        .put_ok("/document.txt", b"Hello, World!".to_vec())
+        .await;
 
     // Multiple edits
-    server.put_ok("/document.txt", b"Hello, WebDAV!".to_vec()).await;
-    server.put_ok("/document.txt", b"Hello, Cryptomator WebDAV!".to_vec()).await;
+    server
+        .put_ok("/document.txt", b"Hello, WebDAV!".to_vec())
+        .await;
+    server
+        .put_ok("/document.txt", b"Hello, Cryptomator WebDAV!".to_vec())
+        .await;
 
     // Verify final state
     assert_file_content(&server, "/document.txt", b"Hello, Cryptomator WebDAV!").await;
@@ -335,9 +384,18 @@ async fn test_project_setup_workflow() {
     server.mkcol_ok("/myproject/docs").await;
 
     // Add files
-    server.put_ok("/myproject/README.md", b"# My Project".to_vec()).await;
-    server.put_ok("/myproject/src/main.rs", b"fn main() {}".to_vec()).await;
-    server.put_ok("/myproject/tests/test.rs", b"#[test] fn it_works() {}".to_vec()).await;
+    server
+        .put_ok("/myproject/README.md", b"# My Project".to_vec())
+        .await;
+    server
+        .put_ok("/myproject/src/main.rs", b"fn main() {}".to_vec())
+        .await;
+    server
+        .put_ok(
+            "/myproject/tests/test.rs",
+            b"#[test] fn it_works() {}".to_vec(),
+        )
+        .await;
 
     // Verify structure
     let (status, body) = server.propfind_body("/myproject", "1").await;
@@ -390,7 +448,9 @@ async fn test_hidden_files_workflow() {
     server.put_ok("/.gitignore", b"*.log".to_vec()).await;
     server.put_ok("/.env", b"SECRET=value".to_vec()).await;
     server.mkcol_ok("/.config").await;
-    server.put_ok("/.config/settings.json", b"{}".to_vec()).await;
+    server
+        .put_ok("/.config/settings.json", b"{}".to_vec())
+        .await;
 
     // Access them
     assert_file_content(&server, "/.gitignore", b"*.log").await;

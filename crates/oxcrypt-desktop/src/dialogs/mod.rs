@@ -13,7 +13,6 @@ mod error_dialog;
 mod force_lock_dialog;
 mod unlock_dialog;
 
-
 pub use add_vault_dialog::AddVaultDialog;
 pub use backend_dialog::{BackendDialog, VaultMountSettings};
 pub use change_password_dialog::ChangePasswordDialog;

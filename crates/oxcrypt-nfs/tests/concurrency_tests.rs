@@ -13,7 +13,7 @@
 mod common;
 
 use common::{
-    assert_file_content, assert_file_hash, multi_chunk_content, random_bytes, sha256, TestMount,
+    TestMount, assert_file_content, assert_file_hash, multi_chunk_content, random_bytes, sha256,
 };
 use std::sync::Arc;
 use std::thread;
@@ -44,7 +44,10 @@ fn test_parallel_reads_same_file() {
             for _ in 0..5 {
                 let read_content = mount_clone.read("/shared.bin").expect("read failed");
                 let actual_hash = sha256(&read_content);
-                assert_eq!(actual_hash, expected, "Content mismatch during parallel read");
+                assert_eq!(
+                    actual_hash, expected,
+                    "Content mismatch during parallel read"
+                );
             }
         }));
     }
@@ -68,7 +71,9 @@ fn test_parallel_reads_different_files() {
     for i in 0..4 {
         let content = random_bytes(10000 + i * 1000);
         let hash = sha256(&content);
-        mount.write(&format!("/file{}.bin", i), &content).expect("write failed");
+        mount
+            .write(&format!("/file{}.bin", i), &content)
+            .expect("write failed");
         expected_hashes.push(hash);
     }
 
@@ -83,7 +88,11 @@ fn test_parallel_reads_different_files() {
                 let path = format!("/file{}.bin", i);
                 let read_content = mount_clone.read(&path).expect("read failed");
                 let actual_hash = sha256(&read_content);
-                assert_eq!(actual_hash, hashes_clone[i], "Content mismatch for {}", path);
+                assert_eq!(
+                    actual_hash, hashes_clone[i],
+                    "Content mismatch for {}",
+                    path
+                );
             }
         }));
     }
@@ -114,7 +123,9 @@ fn test_parallel_writes_different_files() {
             for j in 0..5 {
                 let path = format!("/thread{}_{}.txt", i, j);
                 let content = format!("Thread {} iteration {}", i, j);
-                mount_clone.write(&path, content.as_bytes()).expect("write failed");
+                mount_clone
+                    .write(&path, content.as_bytes())
+                    .expect("write failed");
             }
         }));
     }
@@ -155,7 +166,9 @@ fn test_parallel_writes_to_directories() {
             for j in 0..5 {
                 let path = format!("/dir{}/file{}.txt", i, j);
                 let content = format!("Dir {} file {}", i, j);
-                mount_clone.write(&path, content.as_bytes()).expect("write failed");
+                mount_clone
+                    .write(&path, content.as_bytes())
+                    .expect("write failed");
             }
         }));
     }
@@ -237,7 +250,9 @@ fn test_create_delete_same_file() {
 
     for iteration in 0..20 {
         let content = format!("Iteration {}", iteration);
-        mount.write("/toggle.txt", content.as_bytes()).expect("write failed");
+        mount
+            .write("/toggle.txt", content.as_bytes())
+            .expect("write failed");
 
         // Verify it exists
         let read = mount.read("/toggle.txt");
@@ -278,7 +293,9 @@ fn test_rapid_read_write_cycle() {
 
         // Write new version
         let new_content = format!("version {}", i);
-        mount.write("/rapid.txt", new_content.as_bytes()).expect("write failed");
+        mount
+            .write("/rapid.txt", new_content.as_bytes())
+            .expect("write failed");
     }
 }
 
@@ -291,14 +308,22 @@ fn test_interleaved_reads_writes() {
         return;
     }
 
-    mount.write("/file_a.txt", b"initial A").expect("write failed");
-    mount.write("/file_b.txt", b"initial B").expect("write failed");
+    mount
+        .write("/file_a.txt", b"initial A")
+        .expect("write failed");
+    mount
+        .write("/file_b.txt", b"initial B")
+        .expect("write failed");
 
     // Interleave operations
     assert_file_content(&mount, "/file_a.txt", b"initial A");
-    mount.write("/file_b.txt", b"updated B").expect("write failed");
+    mount
+        .write("/file_b.txt", b"updated B")
+        .expect("write failed");
     assert_file_content(&mount, "/file_b.txt", b"updated B");
-    mount.write("/file_a.txt", b"updated A").expect("write failed");
+    mount
+        .write("/file_a.txt", b"updated A")
+        .expect("write failed");
     assert_file_content(&mount, "/file_a.txt", b"updated A");
     assert_file_content(&mount, "/file_b.txt", b"updated B");
 }
@@ -357,7 +382,9 @@ fn test_parallel_list_dir() {
 
     // Create some files
     for i in 0..10 {
-        mount.write(&format!("/list_file{}.txt", i), b"content").expect("write failed");
+        mount
+            .write(&format!("/list_file{}.txt", i), b"content")
+            .expect("write failed");
     }
 
     let mut handles = vec![];
@@ -393,7 +420,9 @@ fn test_parallel_reads_large_file() {
     // Create a multi-chunk file
     let content = multi_chunk_content(5); // 160KB
     let expected_hash = sha256(&content);
-    mount.write("/large_shared.bin", &content).expect("write failed");
+    mount
+        .write("/large_shared.bin", &content)
+        .expect("write failed");
 
     let mut handles = vec![];
 
@@ -430,7 +459,9 @@ fn test_sequential_then_concurrent() {
     // Sequential writes
     for i in 0..10 {
         let content = format!("Sequential {}", i);
-        mount.write(&format!("/seq{}.txt", i), content.as_bytes()).expect("write failed");
+        mount
+            .write(&format!("/seq{}.txt", i), content.as_bytes())
+            .expect("write failed");
     }
 
     // Concurrent reads
@@ -470,7 +501,9 @@ fn test_stress_many_small_operations() {
                 let content = format!("T{}I{}", thread_id, i);
 
                 // Write
-                mount_clone.write(&path, content.as_bytes()).expect("write failed");
+                mount_clone
+                    .write(&path, content.as_bytes())
+                    .expect("write failed");
 
                 // Read and verify
                 let read = mount_clone.read(&path).expect("read failed");

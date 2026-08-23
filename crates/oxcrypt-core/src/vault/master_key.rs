@@ -42,9 +42,7 @@ const FAST_SCRYPT_COST_PARAM_LOG2: u8 = 10; // 2^10 = 1024
 /// **WARNING**: This is for testing only. Never use in production!
 #[inline]
 fn is_fast_kdf_enabled() -> bool {
-    std::env::var("OXCRYPT_FAST_KDF")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
+    std::env::var("OXCRYPT_FAST_KDF").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// Get the scrypt cost parameter log2 value to use.

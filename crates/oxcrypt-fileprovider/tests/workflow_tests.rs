@@ -6,7 +6,7 @@
 
 mod common;
 
-use common::{generate_test_data, TestMount};
+use common::{TestMount, generate_test_data};
 
 #[test]
 fn create_populate_delete_cycle() {
@@ -54,7 +54,9 @@ fn nested_directory_operations() {
     mount.mkdir_all("a/b/c/d").expect("mkdir_all failed");
 
     // Create files at each level
-    mount.write_file("a/file.txt", b"level a").expect("Write a failed");
+    mount
+        .write_file("a/file.txt", b"level a")
+        .expect("Write a failed");
     mount
         .write_file("a/b/file.txt", b"level b")
         .expect("Write b failed");
@@ -72,9 +74,13 @@ fn nested_directory_operations() {
     assert_eq!(mount.read_file("a/b/c/d/file.txt").unwrap(), b"level d");
 
     // Clean up from deepest level
-    mount.remove_file("a/b/c/d/file.txt").expect("Remove d failed");
+    mount
+        .remove_file("a/b/c/d/file.txt")
+        .expect("Remove d failed");
     mount.remove_dir("a/b/c/d").expect("rmdir d failed");
-    mount.remove_file("a/b/c/file.txt").expect("Remove c failed");
+    mount
+        .remove_file("a/b/c/file.txt")
+        .expect("Remove c failed");
     mount.remove_dir("a/b/c").expect("rmdir c failed");
     mount.remove_file("a/b/file.txt").expect("Remove b failed");
     mount.remove_dir("a/b").expect("rmdir b failed");
@@ -96,9 +102,7 @@ fn file_replace_workflow() {
         .expect("Write original failed");
 
     // Delete and recreate with same name
-    mount
-        .remove_file("document.txt")
-        .expect("Remove failed");
+    mount.remove_file("document.txt").expect("Remove failed");
     mount
         .write_file("document.txt", b"new content")
         .expect("Write new failed");
@@ -133,7 +137,9 @@ fn move_and_modify_workflow() {
 
     // Verify final state
     assert!(!mount.exists("original.txt"));
-    let content = mount.read_file("destination/moved.txt").expect("Read failed");
+    let content = mount
+        .read_file("destination/moved.txt")
+        .expect("Read failed");
     assert_eq!(content, b"modified content");
 }
 
@@ -171,7 +177,9 @@ fn backup_restore_workflow() {
         .expect("Restore failed");
 
     // Verify restoration
-    let restored = mount.read_file("important.dat").expect("Read restored failed");
+    let restored = mount
+        .read_file("important.dat")
+        .expect("Read restored failed");
     assert_eq!(restored, original_content);
 }
 
@@ -182,10 +190,18 @@ fn reorganize_directory_structure() {
     let mount = test_mount_or_skip!("reorganize");
 
     // Create initial flat structure
-    mount.write_file("doc1.txt", b"doc 1").expect("Write 1 failed");
-    mount.write_file("doc2.txt", b"doc 2").expect("Write 2 failed");
-    mount.write_file("image1.png", b"image 1").expect("Write 3 failed");
-    mount.write_file("image2.png", b"image 2").expect("Write 4 failed");
+    mount
+        .write_file("doc1.txt", b"doc 1")
+        .expect("Write 1 failed");
+    mount
+        .write_file("doc2.txt", b"doc 2")
+        .expect("Write 2 failed");
+    mount
+        .write_file("image1.png", b"image 1")
+        .expect("Write 3 failed");
+    mount
+        .write_file("image2.png", b"image 2")
+        .expect("Write 4 failed");
 
     // Create organized structure
     mount.mkdir("documents").expect("mkdir docs failed");
@@ -229,7 +245,9 @@ fn incremental_file_growth() {
     let mount = test_mount_or_skip!("growth");
 
     // Start with empty file
-    mount.write_file("growing.log", b"").expect("Write initial failed");
+    mount
+        .write_file("growing.log", b"")
+        .expect("Write initial failed");
 
     // Append content in stages (simulating log growth)
     let mut full_content = Vec::new();
@@ -241,7 +259,9 @@ fn incremental_file_growth() {
             .expect(&format!("Write stage {i} failed"));
 
         // Verify each stage
-        let read_back = mount.read_file("growing.log").expect(&format!("Read stage {i} failed"));
+        let read_back = mount
+            .read_file("growing.log")
+            .expect(&format!("Read stage {i} failed"));
         assert_eq!(read_back, full_content, "Content mismatch at stage {i}");
     }
 }
@@ -265,7 +285,9 @@ fn concurrent_style_operations() {
     for i in 0..20 {
         let filename = format!("file_{i:03}.txt");
         let expected = format!("Content for file {i}");
-        let actual = mount.read_file(&filename).expect(&format!("Read {i} failed"));
+        let actual = mount
+            .read_file(&filename)
+            .expect(&format!("Read {i} failed"));
         assert_eq!(
             String::from_utf8_lossy(&actual),
             expected,

@@ -3,8 +3,8 @@
 use anyhow::Result;
 use clap::Args as ClapArgs;
 use comfy_table::{Cell, Color, Table};
-use tracing::instrument;
 use oxcrypt_mount::BackendInfo;
+use tracing::instrument;
 
 use super::mount::list_backends;
 
@@ -52,13 +52,12 @@ fn output_table(backends: &[BackendInfo]) {
             "nfs" => "NFSv3 server (macOS, Linux, no extensions)",
             _ => "",
         };
-        let notes = backend.unavailable_reason.as_deref().unwrap_or(default_notes);
+        let notes = backend
+            .unavailable_reason
+            .as_deref()
+            .unwrap_or(default_notes);
 
-        table.add_row(vec![
-            Cell::new(&backend.name),
-            status,
-            Cell::new(notes),
-        ]);
+        table.add_row(vec![Cell::new(&backend.name), status, Cell::new(notes)]);
     }
 
     println!("{table}");
@@ -81,12 +80,14 @@ fn output_table(backends: &[BackendInfo]) {
 fn output_json(backends: &[BackendInfo]) -> Result<()> {
     let json_backends: Vec<_> = backends
         .iter()
-        .map(|b| serde_json::json!({
-            "id": b.id,
-            "name": b.name,
-            "available": b.available,
-            "unavailable_reason": b.unavailable_reason,
-        }))
+        .map(|b| {
+            serde_json::json!({
+                "id": b.id,
+                "name": b.name,
+                "available": b.available,
+                "unavailable_reason": b.unavailable_reason,
+            })
+        })
         .collect();
 
     println!("{}", serde_json::to_string_pretty(&json_backends)?);

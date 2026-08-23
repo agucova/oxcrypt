@@ -9,12 +9,16 @@
 //! - Aggregation queries
 //! - Write operations (inserts and updates)
 //!
-//! Database source: https://github.com/lerocha/chinook-database
+//! Database source: <https://github.com/lerocha/chinook-database>
 
 // Allow numeric casts in this module - all database ID generation involves converting
 // between i64 (SQLite row IDs) and u32 (for RNG ranges). These are bounded by database
 // row counts which are small enough to fit in u32.
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
 use crate::bench::workloads::WorkloadConfig;
 use crate::bench::{Benchmark, PhaseProgress, PhaseProgressCallback};
@@ -22,7 +26,7 @@ use crate::config::OperationType;
 use anyhow::{Context, Result};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
@@ -82,10 +86,13 @@ fn ensure_chinook_downloaded() -> Result<PathBuf> {
     if cache_path.exists() {
         // Verify it's a valid SQLite database
         if let Ok(conn) = Connection::open(&cache_path)
-            && conn.query_row("SELECT COUNT(*) FROM Track", [], |_| Ok(())).is_ok() {
-                tracing::debug!("Using cached Chinook database at {:?}", cache_path);
-                return Ok(cache_path);
-            }
+            && conn
+                .query_row("SELECT COUNT(*) FROM Track", [], |_| Ok(()))
+                .is_ok()
+        {
+            tracing::debug!("Using cached Chinook database at {:?}", cache_path);
+            return Ok(cache_path);
+        }
         // Invalid database, re-download
         fs::remove_file(&cache_path)?;
     }
@@ -143,10 +150,12 @@ pub struct DatabaseWorkload {
 impl DatabaseWorkload {
     pub fn new(config: WorkloadConfig) -> Self {
         let synthetic_tracks = config.scale_count(BASE_SYNTHETIC_TRACKS, MIN_SYNTHETIC_TRACKS);
-        let synthetic_invoices = config.scale_count(BASE_SYNTHETIC_INVOICES, MIN_SYNTHETIC_INVOICES);
+        let synthetic_invoices =
+            config.scale_count(BASE_SYNTHETIC_INVOICES, MIN_SYNTHETIC_INVOICES);
         let index_lookups = config.scale_count(BASE_INDEX_LOOKUPS, MIN_INDEX_LOOKUPS);
         let join_queries = config.scale_count(BASE_JOIN_QUERIES, MIN_JOIN_QUERIES);
-        let aggregation_queries = config.scale_count(BASE_AGGREGATION_QUERIES, MIN_AGGREGATION_QUERIES);
+        let aggregation_queries =
+            config.scale_count(BASE_AGGREGATION_QUERIES, MIN_AGGREGATION_QUERIES);
         let range_scans = config.scale_count(BASE_RANGE_SCANS, MIN_RANGE_SCANS);
         let write_operations = config.scale_count(BASE_WRITE_OPERATIONS, MIN_WRITE_OPERATIONS);
 
@@ -163,9 +172,12 @@ impl DatabaseWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_database_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_database_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn database_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -184,14 +196,18 @@ impl DatabaseWorkload {
         tracing::debug!("Generating synthetic data...");
 
         // Get existing album IDs
-        let album_count: i64 = conn.query_row("SELECT MAX(AlbumId) FROM Album", [], |r| r.get(0))?;
+        let album_count: i64 =
+            conn.query_row("SELECT MAX(AlbumId) FROM Album", [], |r| r.get(0))?;
 
         // Get existing media types and genres
-        let media_type_count: i64 = conn.query_row("SELECT MAX(MediaTypeId) FROM MediaType", [], |r| r.get(0))?;
-        let genre_count: i64 = conn.query_row("SELECT MAX(GenreId) FROM Genre", [], |r| r.get(0))?;
+        let media_type_count: i64 =
+            conn.query_row("SELECT MAX(MediaTypeId) FROM MediaType", [], |r| r.get(0))?;
+        let genre_count: i64 =
+            conn.query_row("SELECT MAX(GenreId) FROM Genre", [], |r| r.get(0))?;
 
         // Get the max track ID
-        let max_track_id: i64 = conn.query_row("SELECT MAX(TrackId) FROM Track", [], |r| r.get(0))?;
+        let max_track_id: i64 =
+            conn.query_row("SELECT MAX(TrackId) FROM Track", [], |r| r.get(0))?;
 
         // Generate synthetic tracks in a single transaction
         // (Without this, each INSERT would fsync individually - 50k+ fsyncs!)
@@ -214,17 +230,29 @@ impl DatabaseWorkload {
                 let unit_price = 0.99;
 
                 stmt.execute(params![
-                    track_id, name, album_id, media_type_id, genre_id,
-                    composer, milliseconds, bytes, unit_price
+                    track_id,
+                    name,
+                    album_id,
+                    media_type_id,
+                    genre_id,
+                    composer,
+                    milliseconds,
+                    bytes,
+                    unit_price
                 ])?;
             }
         }
         conn.execute("COMMIT", [])?;
 
         // Get existing customer IDs
-        let customer_count: i64 = conn.query_row("SELECT MAX(CustomerId) FROM Customer", [], |r| r.get(0))?;
-        let max_invoice_id: i64 = conn.query_row("SELECT MAX(InvoiceId) FROM Invoice", [], |r| r.get(0))?;
-        let max_invoice_line_id: i64 = conn.query_row("SELECT MAX(InvoiceLineId) FROM InvoiceLine", [], |r| r.get(0))?;
+        let customer_count: i64 =
+            conn.query_row("SELECT MAX(CustomerId) FROM Customer", [], |r| r.get(0))?;
+        let max_invoice_id: i64 =
+            conn.query_row("SELECT MAX(InvoiceId) FROM Invoice", [], |r| r.get(0))?;
+        let max_invoice_line_id: i64 =
+            conn.query_row("SELECT MAX(InvoiceLineId) FROM InvoiceLine", [], |r| {
+                r.get(0)
+            })?;
 
         // Collect all valid track IDs (original + synthetic) to avoid foreign key violations
         let mut valid_track_ids = Vec::new();
@@ -251,7 +279,7 @@ impl DatabaseWorkload {
 
             let mut line_stmt = conn.prepare(
                 "INSERT INTO InvoiceLine (InvoiceLineId, InvoiceId, TrackId, UnitPrice, Quantity)
-                 VALUES (?1, ?2, ?3, ?4, ?5)"
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
             )?;
 
             let mut invoice_line_id = max_invoice_line_id + 1;
@@ -264,7 +292,8 @@ impl DatabaseWorkload {
                 let day = 1 + rng.random_range(0..28);
                 let date = format!("{year:04}-{month:02}-{day:02} 00:00:00");
                 let address = format!("{} Main Street", rng.random_range(1..9999));
-                let city = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix"][rng.random_range(0..5)];
+                let city = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix"]
+                    [rng.random_range(0..5)];
                 let country = "USA";
 
                 // Generate 1-5 line items per invoice
@@ -279,18 +308,33 @@ impl DatabaseWorkload {
                     let quantity = 1 + i64::from(rng.random_range(0..3));
                     total += unit_price * quantity as f64;
 
-                    line_stmt.execute(params![invoice_line_id, invoice_id, track_id, unit_price, quantity])?;
+                    line_stmt.execute(params![
+                        invoice_line_id,
+                        invoice_id,
+                        track_id,
+                        unit_price,
+                        quantity
+                    ])?;
                     invoice_line_id += 1;
                 }
 
-                invoice_stmt.execute(params![invoice_id, customer_id, date, address, city, country, total])?;
+                invoice_stmt.execute(params![
+                    invoice_id,
+                    customer_id,
+                    date,
+                    address,
+                    city,
+                    country,
+                    total
+                ])?;
             }
         }
         conn.execute("COMMIT", [])?;
 
         tracing::debug!(
             "Generated {} synthetic tracks and {} invoices",
-            synthetic_tracks, synthetic_invoices
+            synthetic_tracks,
+            synthetic_invoices
         );
 
         Ok(())
@@ -315,13 +359,25 @@ impl Benchmark for DatabaseWorkload {
     fn parameters(&self) -> HashMap<String, String> {
         let mut params = HashMap::new();
         params.insert("database".to_string(), "Chinook (music store)".to_string());
-        params.insert("synthetic_tracks".to_string(), self.synthetic_tracks.to_string());
-        params.insert("synthetic_invoices".to_string(), self.synthetic_invoices.to_string());
+        params.insert(
+            "synthetic_tracks".to_string(),
+            self.synthetic_tracks.to_string(),
+        );
+        params.insert(
+            "synthetic_invoices".to_string(),
+            self.synthetic_invoices.to_string(),
+        );
         params.insert("index_lookups".to_string(), self.index_lookups.to_string());
         params.insert("join_queries".to_string(), self.join_queries.to_string());
-        params.insert("aggregation_queries".to_string(), self.aggregation_queries.to_string());
+        params.insert(
+            "aggregation_queries".to_string(),
+            self.aggregation_queries.to_string(),
+        );
         params.insert("range_scans".to_string(), self.range_scans.to_string());
-        params.insert("write_operations".to_string(), self.write_operations.to_string());
+        params.insert(
+            "write_operations".to_string(),
+            self.write_operations.to_string(),
+        );
         params.insert("scale".to_string(), format!("{:.2}", self.config.scale));
         params
     }
@@ -333,22 +389,24 @@ impl Benchmark for DatabaseWorkload {
         // Ensure Chinook database is downloaded
         let download_start = Instant::now();
         debug!("Ensuring Chinook database is downloaded...");
-        let cached_db = ensure_chinook_downloaded()
-            .map_err(|e| {
-                error!("Failed to download Chinook database: {}", e);
-                e
-            })?;
+        let cached_db = ensure_chinook_downloaded().map_err(|e| {
+            error!("Failed to download Chinook database: {}", e);
+            e
+        })?;
         debug!("✓ Download/cache check took {:?}", download_start.elapsed());
 
         // Create workload directory
         let mkdir_start = Instant::now();
         let workload_dir = self.workload_dir(mount_point, iteration);
         debug!("Creating workload directory: {}", workload_dir.display());
-        fs::create_dir_all(&workload_dir)
-            .map_err(|e| {
-                error!("Failed to create workload directory {}: {}", workload_dir.display(), e);
+        fs::create_dir_all(&workload_dir).map_err(|e| {
+            error!(
+                "Failed to create workload directory {}: {}",
+                workload_dir.display(),
                 e
-            })?;
+            );
+            e
+        })?;
         debug!("✓ mkdir took {:?}", mkdir_start.elapsed());
 
         // Copy database to mount point
@@ -356,7 +414,11 @@ impl Benchmark for DatabaseWorkload {
         // clonefile/copyfile syscalls that may not work with FUSE filesystems
         let copy_start = Instant::now();
         let db_path = self.database_path(mount_point, iteration);
-        debug!("Copying Chinook database from {} to {}", cached_db.display(), db_path.display());
+        debug!(
+            "Copying Chinook database from {} to {}",
+            cached_db.display(),
+            db_path.display()
+        );
         let file_size = fs::metadata(&cached_db)?.len();
 
         let mut src = fs::File::open(&cached_db).map_err(|e| {
@@ -365,7 +427,11 @@ impl Benchmark for DatabaseWorkload {
         })?;
 
         let mut dst = fs::File::create(&db_path).map_err(|e| {
-            error!("Failed to create destination file {}: {}", db_path.display(), e);
+            error!(
+                "Failed to create destination file {}: {}",
+                db_path.display(),
+                e
+            );
             e
         })?;
 
@@ -378,18 +444,24 @@ impl Benchmark for DatabaseWorkload {
         dst.sync_all()?;
         drop(dst);
         let copy_elapsed = copy_start.elapsed();
-        debug!("✓ Copy {} bytes took {:?} ({:.2} MB/s)",
-               file_size, copy_elapsed,
-               file_size as f64 / copy_elapsed.as_secs_f64() / 1_048_576.0);
+        debug!(
+            "✓ Copy {} bytes took {:?} ({:.2} MB/s)",
+            file_size,
+            copy_elapsed,
+            file_size as f64 / copy_elapsed.as_secs_f64() / 1_048_576.0
+        );
 
         // Open and augment with synthetic data
         let open_start = Instant::now();
         debug!("Opening database at {}", db_path.display());
-        let conn = Connection::open(&db_path)
-            .map_err(|e| {
-                error!("Failed to open SQLite database at {}: {}", db_path.display(), e);
+        let conn = Connection::open(&db_path).map_err(|e| {
+            error!(
+                "Failed to open SQLite database at {}: {}",
+                db_path.display(),
                 e
-            })?;
+            );
+            e
+        })?;
         debug!("✓ Open database took {:?}", open_start.elapsed());
 
         let pragma_start = Instant::now();
@@ -402,14 +474,24 @@ impl Benchmark for DatabaseWorkload {
         debug!("✓ Pragmas took {:?}", pragma_start.elapsed());
 
         let synthetic_start = Instant::now();
-        debug!("Generating {} synthetic tracks and {} synthetic invoices",
-               self.synthetic_tracks, self.synthetic_invoices);
-        Self::generate_synthetic_data(&conn, self.seed, self.synthetic_tracks, self.synthetic_invoices)
-            .map_err(|e| {
-                error!("Failed to generate synthetic data: {}", e);
-                e
-            })?;
-        debug!("✓ Synthetic data generation took {:?}", synthetic_start.elapsed());
+        debug!(
+            "Generating {} synthetic tracks and {} synthetic invoices",
+            self.synthetic_tracks, self.synthetic_invoices
+        );
+        Self::generate_synthetic_data(
+            &conn,
+            self.seed,
+            self.synthetic_tracks,
+            self.synthetic_invoices,
+        )
+        .map_err(|e| {
+            error!("Failed to generate synthetic data: {}", e);
+            e
+        })?;
+        debug!(
+            "✓ Synthetic data generation took {:?}",
+            synthetic_start.elapsed()
+        );
 
         // Force checkpoint to merge WAL
         let checkpoint_start = Instant::now();
@@ -421,7 +503,10 @@ impl Benchmark for DatabaseWorkload {
             })?;
         debug!("✓ WAL checkpoint took {:?}", checkpoint_start.elapsed());
 
-        debug!("✓ Database setup completed successfully in {:?}", total_start.elapsed());
+        debug!(
+            "✓ Database setup completed successfully in {:?}",
+            total_start.elapsed()
+        );
         Ok(())
     }
 
@@ -435,11 +520,16 @@ impl Benchmark for DatabaseWorkload {
         conn.execute_batch("PRAGMA cache_size = 5000; PRAGMA temp_store = MEMORY;")?;
 
         // Get counts for random access
-        let track_count: i64 = conn.query_row("SELECT MAX(TrackId) FROM Track", [], |r| r.get(0))?;
-        let artist_count: i64 = conn.query_row("SELECT MAX(ArtistId) FROM Artist", [], |r| r.get(0))?;
-        let album_count: i64 = conn.query_row("SELECT MAX(AlbumId) FROM Album", [], |r| r.get(0))?;
-        let _customer_count: i64 = conn.query_row("SELECT MAX(CustomerId) FROM Customer", [], |r| r.get(0))?;
-        let invoice_count: i64 = conn.query_row("SELECT MAX(InvoiceId) FROM Invoice", [], |r| r.get(0))?;
+        let track_count: i64 =
+            conn.query_row("SELECT MAX(TrackId) FROM Track", [], |r| r.get(0))?;
+        let artist_count: i64 =
+            conn.query_row("SELECT MAX(ArtistId) FROM Artist", [], |r| r.get(0))?;
+        let album_count: i64 =
+            conn.query_row("SELECT MAX(AlbumId) FROM Album", [], |r| r.get(0))?;
+        let _customer_count: i64 =
+            conn.query_row("SELECT MAX(CustomerId) FROM Customer", [], |r| r.get(0))?;
+        let invoice_count: i64 =
+            conn.query_row("SELECT MAX(InvoiceId) FROM Invoice", [], |r| r.get(0))?;
 
         // ===== Phase 1: Index lookups (primary key access) =====
         {
@@ -482,7 +572,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Track t
                  JOIN Album al ON t.AlbumId = al.AlbumId
                  JOIN Artist ar ON al.ArtistId = ar.ArtistId
-                 WHERE t.TrackId = ?1"
+                 WHERE t.TrackId = ?1",
             )?;
 
             // Invoice with customer and line items
@@ -492,7 +582,7 @@ impl Benchmark for DatabaseWorkload {
                  JOIN Customer c ON i.CustomerId = c.CustomerId
                  JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
                  JOIN Track t ON il.TrackId = t.TrackId
-                 WHERE i.InvoiceId = ?1"
+                 WHERE i.InvoiceId = ?1",
             )?;
 
             for _ in 0..self.join_queries {
@@ -520,7 +610,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Invoice
                  GROUP BY BillingCountry
                  ORDER BY TotalSales DESC
-                 LIMIT 20"
+                 LIMIT 20",
             )?;
 
             // Track count by genre
@@ -529,7 +619,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Track t
                  JOIN Genre g ON t.GenreId = g.GenreId
                  GROUP BY g.GenreId
-                 ORDER BY TrackCount DESC"
+                 ORDER BY TrackCount DESC",
             )?;
 
             // Top customers
@@ -539,7 +629,7 @@ impl Benchmark for DatabaseWorkload {
                  JOIN Invoice i ON c.CustomerId = i.CustomerId
                  GROUP BY c.CustomerId
                  ORDER BY TotalSpent DESC
-                 LIMIT 50"
+                 LIMIT 50",
             )?;
 
             for i in 0..self.aggregation_queries {
@@ -573,7 +663,7 @@ impl Benchmark for DatabaseWorkload {
                 "SELECT TrackId, Name, Milliseconds FROM Track
                  WHERE Milliseconds BETWEEN ?1 AND ?2
                  ORDER BY Milliseconds
-                 LIMIT 1000"
+                 LIMIT 1000",
             )?;
 
             // Invoices by date range
@@ -581,7 +671,7 @@ impl Benchmark for DatabaseWorkload {
                 "SELECT InvoiceId, InvoiceDate, Total FROM Invoice
                  WHERE InvoiceDate BETWEEN ?1 AND ?2
                  ORDER BY InvoiceDate
-                 LIMIT 500"
+                 LIMIT 500",
             )?;
 
             for _ in 0..self.range_scans {
@@ -620,15 +710,20 @@ impl Benchmark for DatabaseWorkload {
                     result_key TEXT,
                     result_value REAL,
                     computed_at TEXT
-                )"
+                )",
             )?;
 
             let mut insert_stmt = conn.prepare(
                 "INSERT INTO AnalysisCache (query_type, result_key, result_value, computed_at)
-                 VALUES (?1, ?2, ?3, datetime('now'))"
+                 VALUES (?1, ?2, ?3, datetime('now'))",
             )?;
 
-            let query_types = ["genre_stats", "country_sales", "artist_popularity", "customer_value"];
+            let query_types = [
+                "genre_stats",
+                "country_sales",
+                "artist_popularity",
+                "customer_value",
+            ];
 
             for _ in 0..self.write_operations {
                 let query_type = query_types[rng.random_range(0..query_types.len())];
@@ -639,18 +734,16 @@ impl Benchmark for DatabaseWorkload {
             }
 
             // Read back some results
-            let mut select_stmt = conn.prepare(
-                "SELECT * FROM AnalysisCache ORDER BY id DESC LIMIT 50"
-            )?;
+            let mut select_stmt =
+                conn.prepare("SELECT * FROM AnalysisCache ORDER BY id DESC LIMIT 50")?;
             let mut rows = select_stmt.query([])?;
             while let Some(row) = rows.next()? {
                 std::hint::black_box(row.get::<_, i64>(0)?);
             }
 
             // Update some invoices (simulates business operations)
-            let mut update_stmt = conn.prepare(
-                "UPDATE Invoice SET Total = Total * 1.0 WHERE InvoiceId = ?1"
-            )?;
+            let mut update_stmt =
+                conn.prepare("UPDATE Invoice SET Total = Total * 1.0 WHERE InvoiceId = ?1")?;
             for _ in 0..50 {
                 let invoice_id = 1 + i64::from(rng.random_range(0..invoice_count as u32));
                 update_stmt.execute(params![invoice_id])?;
@@ -668,7 +761,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Invoice
                  GROUP BY Month
                  ORDER BY Month DESC
-                 LIMIT 24"
+                 LIMIT 24",
             )?;
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
@@ -686,7 +779,7 @@ impl Benchmark for DatabaseWorkload {
                  LEFT JOIN InvoiceLine il ON t.TrackId = il.TrackId
                  GROUP BY ar.ArtistId
                  ORDER BY Revenue DESC
-                 LIMIT 50"
+                 LIMIT 50",
             )?;
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
@@ -728,11 +821,16 @@ impl Benchmark for DatabaseWorkload {
         conn.execute_batch("PRAGMA cache_size = 5000; PRAGMA temp_store = MEMORY;")?;
 
         // Get counts for random access
-        let track_count: i64 = conn.query_row("SELECT MAX(TrackId) FROM Track", [], |r| r.get(0))?;
-        let artist_count: i64 = conn.query_row("SELECT MAX(ArtistId) FROM Artist", [], |r| r.get(0))?;
-        let album_count: i64 = conn.query_row("SELECT MAX(AlbumId) FROM Album", [], |r| r.get(0))?;
-        let _customer_count: i64 = conn.query_row("SELECT MAX(CustomerId) FROM Customer", [], |r| r.get(0))?;
-        let invoice_count: i64 = conn.query_row("SELECT MAX(InvoiceId) FROM Invoice", [], |r| r.get(0))?;
+        let track_count: i64 =
+            conn.query_row("SELECT MAX(TrackId) FROM Track", [], |r| r.get(0))?;
+        let artist_count: i64 =
+            conn.query_row("SELECT MAX(ArtistId) FROM Artist", [], |r| r.get(0))?;
+        let album_count: i64 =
+            conn.query_row("SELECT MAX(AlbumId) FROM Album", [], |r| r.get(0))?;
+        let _customer_count: i64 =
+            conn.query_row("SELECT MAX(CustomerId) FROM Customer", [], |r| r.get(0))?;
+        let invoice_count: i64 =
+            conn.query_row("SELECT MAX(InvoiceId) FROM Invoice", [], |r| r.get(0))?;
 
         // Helper to report progress
         let report = |phase_idx: usize, items_done: usize, items_total: usize| {
@@ -789,7 +887,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Track t
                  JOIN Album al ON t.AlbumId = al.AlbumId
                  JOIN Artist ar ON al.ArtistId = ar.ArtistId
-                 WHERE t.TrackId = ?1"
+                 WHERE t.TrackId = ?1",
             )?;
 
             // Invoice with customer and line items
@@ -799,7 +897,7 @@ impl Benchmark for DatabaseWorkload {
                  JOIN Customer c ON i.CustomerId = c.CustomerId
                  JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
                  JOIN Track t ON il.TrackId = t.TrackId
-                 WHERE i.InvoiceId = ?1"
+                 WHERE i.InvoiceId = ?1",
             )?;
 
             for i in 0..self.join_queries {
@@ -828,7 +926,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Invoice
                  GROUP BY BillingCountry
                  ORDER BY TotalSales DESC
-                 LIMIT 20"
+                 LIMIT 20",
             )?;
 
             // Track count by genre
@@ -837,7 +935,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Track t
                  JOIN Genre g ON t.GenreId = g.GenreId
                  GROUP BY g.GenreId
-                 ORDER BY TrackCount DESC"
+                 ORDER BY TrackCount DESC",
             )?;
 
             // Top customers
@@ -847,7 +945,7 @@ impl Benchmark for DatabaseWorkload {
                  JOIN Invoice i ON c.CustomerId = i.CustomerId
                  GROUP BY c.CustomerId
                  ORDER BY TotalSpent DESC
-                 LIMIT 50"
+                 LIMIT 50",
             )?;
 
             for i in 0..self.aggregation_queries {
@@ -882,7 +980,7 @@ impl Benchmark for DatabaseWorkload {
                 "SELECT TrackId, Name, Milliseconds FROM Track
                  WHERE Milliseconds BETWEEN ?1 AND ?2
                  ORDER BY Milliseconds
-                 LIMIT 1000"
+                 LIMIT 1000",
             )?;
 
             // Invoices by date range
@@ -890,7 +988,7 @@ impl Benchmark for DatabaseWorkload {
                 "SELECT InvoiceId, InvoiceDate, Total FROM Invoice
                  WHERE InvoiceDate BETWEEN ?1 AND ?2
                  ORDER BY InvoiceDate
-                 LIMIT 500"
+                 LIMIT 500",
             )?;
 
             for i in 0..self.range_scans {
@@ -930,15 +1028,20 @@ impl Benchmark for DatabaseWorkload {
                     result_key TEXT,
                     result_value REAL,
                     computed_at TEXT
-                )"
+                )",
             )?;
 
             let mut insert_stmt = conn.prepare(
                 "INSERT INTO AnalysisCache (query_type, result_key, result_value, computed_at)
-                 VALUES (?1, ?2, ?3, datetime('now'))"
+                 VALUES (?1, ?2, ?3, datetime('now'))",
             )?;
 
-            let query_types = ["genre_stats", "country_sales", "artist_popularity", "customer_value"];
+            let query_types = [
+                "genre_stats",
+                "country_sales",
+                "artist_popularity",
+                "customer_value",
+            ];
 
             for i in 0..self.write_operations {
                 let query_type = query_types[rng.random_range(0..query_types.len())];
@@ -950,18 +1053,16 @@ impl Benchmark for DatabaseWorkload {
             }
 
             // Read back some results
-            let mut select_stmt = conn.prepare(
-                "SELECT * FROM AnalysisCache ORDER BY id DESC LIMIT 50"
-            )?;
+            let mut select_stmt =
+                conn.prepare("SELECT * FROM AnalysisCache ORDER BY id DESC LIMIT 50")?;
             let mut rows = select_stmt.query([])?;
             while let Some(row) = rows.next()? {
                 std::hint::black_box(row.get::<_, i64>(0)?);
             }
 
             // Update some invoices (simulates business operations)
-            let mut update_stmt = conn.prepare(
-                "UPDATE Invoice SET Total = Total * 1.0 WHERE InvoiceId = ?1"
-            )?;
+            let mut update_stmt =
+                conn.prepare("UPDATE Invoice SET Total = Total * 1.0 WHERE InvoiceId = ?1")?;
             for _ in 0..50 {
                 let invoice_id = 1 + i64::from(rng.random_range(0..invoice_count as u32));
                 update_stmt.execute(params![invoice_id])?;
@@ -982,7 +1083,7 @@ impl Benchmark for DatabaseWorkload {
                  FROM Invoice
                  GROUP BY Month
                  ORDER BY Month DESC
-                 LIMIT 24"
+                 LIMIT 24",
             )?;
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
@@ -1002,7 +1103,7 @@ impl Benchmark for DatabaseWorkload {
                  LEFT JOIN InvoiceLine il ON t.TrackId = il.TrackId
                  GROUP BY ar.ArtistId
                  ORDER BY Revenue DESC
-                 LIMIT 50"
+                 LIMIT 50",
             )?;
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {

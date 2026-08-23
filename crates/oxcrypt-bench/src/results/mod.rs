@@ -14,7 +14,7 @@ pub mod phase_progress;
 pub mod printer;
 pub mod stats;
 
-pub use bayesian::{bayesian_compare, BayesianComparison, BayesianConfig};
+pub use bayesian::{BayesianComparison, BayesianConfig, bayesian_compare};
 pub use format::{
     format_duration, format_mean_sigma, format_percentage, format_range, format_speedup,
     format_throughput,
@@ -22,7 +22,7 @@ pub use format::{
 pub use live::LiveProgressReporter;
 pub use phase_progress::PhaseProgressReporter;
 pub use printer::BenchmarkPrinter;
-pub use stats::{compute_stats, BenchmarkStats, LatencyStats, Throughput};
+pub use stats::{BenchmarkStats, LatencyStats, Throughput, compute_stats};
 
 use crate::bench::BenchmarkResult;
 use crate::config::BenchmarkConfig;
@@ -173,7 +173,11 @@ pub fn export_json(
             suite: config.suite.to_string(),
             iterations: config.effective_iterations(),
             warmup_iterations: config.warmup_iterations,
-            implementations: config.implementations.iter().map(|i| i.name().to_string()).collect(),
+            implementations: config
+                .implementations
+                .iter()
+                .map(|i| i.name().to_string())
+                .collect(),
             flamegraph_enabled: config.flamegraph_enabled,
             flamegraph_dir: if config.flamegraph_enabled {
                 Some(config.flamegraph_dir.display().to_string())

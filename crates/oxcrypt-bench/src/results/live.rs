@@ -34,12 +34,7 @@ impl LiveProgressReporter {
     /// Create a new progress reporter for a benchmark.
     ///
     /// Prints the header line and initializes the progress bar.
-    pub fn new(
-        benchmark_name: &str,
-        impl_name: &str,
-        iterations: usize,
-        color: bool,
-    ) -> Self {
+    pub fn new(benchmark_name: &str, impl_name: &str, iterations: usize, color: bool) -> Self {
         use owo_colors::OwoColorize;
 
         // Print the benchmark header
@@ -60,7 +55,9 @@ impl LiveProgressReporter {
 
         let style = if color {
             ProgressStyle::default_bar()
-                .template("  {spinner:.cyan} Current estimate: {msg:<12}  {bar:20.cyan/dim} ETA {eta}")
+                .template(
+                    "  {spinner:.cyan} Current estimate: {msg:<12}  {bar:20.cyan/dim} ETA {eta}",
+                )
                 .expect("valid template")
                 .progress_chars("█▓░")
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])

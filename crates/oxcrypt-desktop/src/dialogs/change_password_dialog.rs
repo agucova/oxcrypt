@@ -47,10 +47,8 @@ pub fn ChangePasswordDialog(props: ChangePasswordDialogProps) -> Element {
     // Validation
     let passwords_match = new_password() == confirm_password();
     let new_password_empty = new_password().is_empty();
-    let can_submit = !current_password().is_empty()
-        && !new_password_empty
-        && passwords_match
-        && !is_changing;
+    let can_submit =
+        !current_password().is_empty() && !new_password_empty && passwords_match && !is_changing;
 
     let handle_submit = {
         let vault_path = props.vault_path.clone();
@@ -71,13 +69,7 @@ pub fn ChangePasswordDialog(props: ChangePasswordDialogProps) -> Element {
                 let masterkey_dir = path.join("masterkey");
                 let result = tokio::task::spawn_blocking({
                     let masterkey_path = masterkey_dir.clone().join("masterkey.cryptomator");
-                    move || {
-                        oxcrypt_core::vault::change_password(
-                            &masterkey_path,
-                            &old_pw,
-                            &new_pw,
-                        )
-                    }
+                    move || oxcrypt_core::vault::change_password(&masterkey_path, &old_pw, &new_pw)
                 })
                 .await;
 
@@ -88,20 +80,18 @@ pub fn ChangePasswordDialog(props: ChangePasswordDialogProps) -> Element {
                         let masterkey_path = masterkey_dir.join("masterkey.cryptomator");
 
                         match tokio::fs::write(&temp_path, &new_content).await {
-                            Ok(()) => {
-                                match tokio::fs::rename(&temp_path, &masterkey_path).await {
-                                    Ok(()) => {
-                                        state.set(ChangePasswordState::Idle);
-                                        on_complete.call(());
-                                    }
-                                    Err(e) => {
-                                        state.set(ChangePasswordState::Error(format!(
-                                            "Failed to save new password: {}",
-                                            e
-                                        )));
-                                    }
+                            Ok(()) => match tokio::fs::rename(&temp_path, &masterkey_path).await {
+                                Ok(()) => {
+                                    state.set(ChangePasswordState::Idle);
+                                    on_complete.call(());
                                 }
-                            }
+                                Err(e) => {
+                                    state.set(ChangePasswordState::Error(format!(
+                                        "Failed to save new password: {}",
+                                        e
+                                    )));
+                                }
+                            },
                             Err(e) => {
                                 state.set(ChangePasswordState::Error(format!(
                                     "Failed to write new password: {}",

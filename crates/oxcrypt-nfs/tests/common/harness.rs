@@ -12,8 +12,8 @@ use oxcrypt_core::vault::VaultCreator;
 use oxcrypt_mount::{cleanup_test_mounts, force_unmount};
 use oxcrypt_nfs::CryptomatorNFS;
 use std::fs::{self, File, Metadata};
-use std::io::{self, Read, Write};
 use std::io::IsTerminal;
+use std::io::{self, Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -33,24 +33,21 @@ static CLEANUP_ONCE: Once = Once::new();
 /// and runs at most once per test process. It cleans up mounts with
 /// `cryptomator-test` or `cryptomator:test` in their fsname.
 fn cleanup_stale_test_mounts() {
-    CLEANUP_ONCE.call_once(|| {
-        match cleanup_test_mounts() {
-            Ok(results) => {
-                for result in results {
-                    if result.success
-                        && let oxcrypt_mount::CleanupAction::Unmounted = result.action {
-                            eprintln!(
-                                "[nfs-test-harness] Cleaned stale test mount: {}",
-                                result.mountpoint.display()
-                            );
-                        }
+    CLEANUP_ONCE.call_once(|| match cleanup_test_mounts() {
+        Ok(results) => {
+            for result in results {
+                if result.success
+                    && let oxcrypt_mount::CleanupAction::Unmounted = result.action
+                {
+                    eprintln!(
+                        "[nfs-test-harness] Cleaned stale test mount: {}",
+                        result.mountpoint.display()
+                    );
                 }
             }
-            Err(e) => {
-                eprintln!(
-                    "[nfs-test-harness] Warning: Failed to clean stale mounts: {e}"
-                );
-            }
+        }
+        Err(e) => {
+            eprintln!("[nfs-test-harness] Warning: Failed to clean stale mounts: {e}");
         }
     });
 }
@@ -118,7 +115,11 @@ impl TestMount {
     }
 
     /// Mount a vault at the given path.
-    fn mount_vault(vault_path: &Path, password: &str, temp_vault: Option<TempDir>) -> io::Result<Self> {
+    fn mount_vault(
+        vault_path: &Path,
+        password: &str,
+        temp_vault: Option<TempDir>,
+    ) -> io::Result<Self> {
         // Clean up any stale test mounts from previous runs
         cleanup_stale_test_mounts();
 

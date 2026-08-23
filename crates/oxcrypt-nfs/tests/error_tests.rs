@@ -13,7 +13,7 @@
 
 mod common;
 
-use common::{TestMount};
+use common::TestMount;
 use std::io::ErrorKind;
 
 // ============================================================================
@@ -68,7 +68,10 @@ fn test_rmdir_nonexistent() {
     skip_if_not_mounted!(mount);
 
     let result = mount.rmdir("/nonexistent_dir");
-    assert!(result.is_err(), "Removing nonexistent directory should fail");
+    assert!(
+        result.is_err(),
+        "Removing nonexistent directory should fail"
+    );
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
 }
 
@@ -111,7 +114,10 @@ fn test_mkdir_under_file() {
     mount.write("/file.txt", b"content").expect("write failed");
 
     let result = mount.mkdir("/file.txt/subdir");
-    assert!(result.is_err(), "Creating directory under a file should fail");
+    assert!(
+        result.is_err(),
+        "Creating directory under a file should fail"
+    );
 }
 
 #[test]
@@ -148,7 +154,10 @@ fn test_delete_directory_as_file() {
     mount.mkdir("/directory").expect("mkdir failed");
 
     let result = mount.delete("/directory");
-    assert!(result.is_err(), "Deleting directory with delete() should fail");
+    assert!(
+        result.is_err(),
+        "Deleting directory with delete() should fail"
+    );
     // Error kind varies: IsADirectory, PermissionDenied, or Other
     let kind = result.unwrap_err().kind();
     assert!(
@@ -196,7 +205,9 @@ fn test_rmdir_nonempty() {
     skip_if_not_mounted!(mount);
 
     mount.mkdir("/directory").expect("mkdir failed");
-    mount.write("/directory/file.txt", b"content").expect("write failed");
+    mount
+        .write("/directory/file.txt", b"content")
+        .expect("write failed");
 
     let result = mount.rmdir("/directory");
     assert!(result.is_err(), "Removing non-empty directory should fail");
@@ -217,7 +228,10 @@ fn test_rmdir_nonempty_with_subdirectory() {
     mount.mkdir("/directory/subdir").expect("mkdir failed");
 
     let result = mount.rmdir("/directory");
-    assert!(result.is_err(), "Removing directory with subdirectory should fail");
+    assert!(
+        result.is_err(),
+        "Removing directory with subdirectory should fail"
+    );
 }
 
 // ============================================================================
@@ -248,7 +262,10 @@ fn test_mkdir_where_file_exists() {
     mount.write("/name", b"file content").expect("write failed");
 
     let result = mount.mkdir("/name");
-    assert!(result.is_err(), "Creating directory where file exists should fail");
+    assert!(
+        result.is_err(),
+        "Creating directory where file exists should fail"
+    );
 }
 
 // ============================================================================
@@ -417,7 +434,9 @@ fn test_access_in_deleted_parent() {
     skip_if_not_mounted!(mount);
 
     mount.mkdir("/parent").expect("mkdir failed");
-    mount.write("/parent/child.txt", b"content").expect("write failed");
+    mount
+        .write("/parent/child.txt", b"content")
+        .expect("write failed");
 
     // Delete the parent
     mount.rmdir_all("/parent").expect("rmdir_all failed");

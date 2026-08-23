@@ -42,7 +42,8 @@ impl AssetCache {
 
     /// Get the full path for an asset.
     pub fn asset_path(&self, asset: &Asset) -> PathBuf {
-        self.category_dir(asset.category).join(asset.cache_filename())
+        self.category_dir(asset.category)
+            .join(asset.cache_filename())
     }
 
     /// Check if an asset is cached.
@@ -58,7 +59,8 @@ impl AssetCache {
             let expected = asset.size;
             let actual = metadata.len();
             let tolerance = expected / 100;
-            actual >= expected.saturating_sub(tolerance) && actual <= expected.saturating_add(tolerance)
+            actual >= expected.saturating_sub(tolerance)
+                && actual <= expected.saturating_add(tolerance)
         } else {
             false
         }
@@ -77,8 +79,7 @@ impl AssetCache {
 
     /// Ensure the cache directory exists.
     pub fn ensure_dirs(&self) -> Result<()> {
-        fs::create_dir_all(&self.base_dir)
-            .context("Failed to create cache directory")?;
+        fs::create_dir_all(&self.base_dir).context("Failed to create cache directory")?;
 
         // Create category subdirectories
         for category in &[
@@ -115,8 +116,7 @@ impl AssetCache {
     /// Clear the entire cache.
     pub fn clear(&self) -> Result<()> {
         if self.base_dir.exists() {
-            fs::remove_dir_all(&self.base_dir)
-                .context("Failed to clear cache")?;
+            fs::remove_dir_all(&self.base_dir).context("Failed to clear cache")?;
         }
         Ok(())
     }
@@ -125,8 +125,7 @@ impl AssetCache {
     pub fn clear_category(&self, category: AssetCategory) -> Result<()> {
         let dir = self.category_dir(category);
         if dir.exists() {
-            fs::remove_dir_all(&dir)
-                .context("Failed to clear category cache")?;
+            fs::remove_dir_all(&dir).context("Failed to clear category cache")?;
         }
         Ok(())
     }
@@ -135,8 +134,7 @@ impl AssetCache {
     pub fn remove(&self, asset: &Asset) -> Result<()> {
         let path = self.asset_path(asset);
         if path.exists() {
-            fs::remove_file(&path)
-                .with_context(|| format!("Failed to remove {}", asset.name))?;
+            fs::remove_file(&path).with_context(|| format!("Failed to remove {}", asset.name))?;
         }
         Ok(())
     }
@@ -175,7 +173,7 @@ impl AssetCache {
                 let filename = entry.file_name().to_string_lossy().to_string();
 
                 if !current_files.contains(&filename) {
-                    let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                    let size = entry.metadata().map_or(0, |m| m.len());
                     fs::remove_file(entry.path())?;
                     stats.files_removed += 1;
                     stats.bytes_freed += size;

@@ -5,26 +5,21 @@
 use dioxus::prelude::*;
 use std::path::PathBuf;
 
-use crate::state::{use_app_state, VaultConfig};
+use crate::state::{VaultConfig, use_app_state};
 
 /// State for the add vault dialog
-#[derive(Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Clone, PartialEq, Default)]
 pub enum AddVaultState {
     /// Initial state - waiting for folder selection
     #[default]
     SelectFolder,
     /// Folder selected, editing name
-    EditName {
-        path: PathBuf,
-        name: String,
-    },
+    EditName { path: PathBuf, name: String },
     /// Adding vault in progress
     Adding,
     /// Error occurred
     Error(String),
 }
-
 
 /// Props for the add vault dialog
 #[derive(Props, Clone, PartialEq)]
@@ -83,7 +78,9 @@ pub fn AddVaultDialog(props: AddVaultDialogProps) -> Element {
         move |_| {
             if let AddVaultState::EditName { path, name } = state() {
                 if name.trim().is_empty() {
-                    state.set(AddVaultState::Error("Vault name cannot be empty".to_string()));
+                    state.set(AddVaultState::Error(
+                        "Vault name cannot be empty".to_string(),
+                    ));
                     return;
                 }
 

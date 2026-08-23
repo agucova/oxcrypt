@@ -17,8 +17,8 @@
 //!
 //! # Variants
 //!
-//! - [`SyncTtlCache`] - For synchronous contexts (FUSE, FSKit, NFS)
-//! - [`AsyncTtlCache`] - For async contexts (WebDAV with tokio)
+//! - [`crate::moka_cache::SyncTtlCache`] - For synchronous contexts (FUSE, FSKit, NFS)
+//! - [`crate::moka_cache::AsyncTtlCache`] - For async contexts (WebDAV with tokio)
 //!
 //! # Tracing
 //!
@@ -581,8 +581,7 @@ where
             neg.invalidate(&key);
             cache_event!(debug, "cleared negative cache entry");
         }
-        self.positive
-            .insert(key, CachedEntry::new(value, self.ttl));
+        self.positive.insert(key, CachedEntry::new(value, self.ttl));
         cache_event!(debug, "inserted entry");
         if let Some(ref stats) = self.stats {
             stats.record_insert();
@@ -596,7 +595,11 @@ where
     pub fn insert_with_ttl(&self, key: K, value: V, ttl: Duration) {
         // Safe cast: Duration values fit in u64 for reasonable TTLs
         #[allow(clippy::cast_possible_truncation)]
-        let _span = cache_span!("cache_insert_with_ttl", cache = "sync", ttl_ms = ttl.as_millis() as u64);
+        let _span = cache_span!(
+            "cache_insert_with_ttl",
+            cache = "sync",
+            ttl_ms = ttl.as_millis() as u64
+        );
 
         // Remove from negative cache if enabled
         if let Some(ref neg) = self.negative {
@@ -705,15 +708,13 @@ where
 
     /// Returns the approximate number of entries in the negative cache.
     pub fn negative_len(&self) -> usize {
-        self.negative
-            .as_ref()
-            .map_or(0, |n| {
-                // Safe cast: entry_count() returns u64, which fits in usize on 64-bit systems
-                #[allow(clippy::cast_possible_truncation)]
-                {
-                    n.entry_count() as usize
-                }
-            })
+        self.negative.as_ref().map_or(0, |n| {
+            // Safe cast: entry_count() returns u64, which fits in usize on 64-bit systems
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                n.entry_count() as usize
+            }
+        })
     }
 
     /// Returns true if the positive cache is empty.
@@ -1176,7 +1177,11 @@ where
     }
 
     /// Gets a cached entry, computing it if missing with a fallible computation.
-    pub async fn try_get_or_insert<F, Fut, E>(&self, key: &K, compute: F) -> Result<Option<V>, Arc<E>>
+    pub async fn try_get_or_insert<F, Fut, E>(
+        &self,
+        key: &K,
+        compute: F,
+    ) -> Result<Option<V>, Arc<E>>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<V, E>>,
@@ -1234,13 +1239,19 @@ where
     pub async fn insert_with_ttl(&self, key: K, value: V, ttl: Duration) {
         // TTL values are practical durations (seconds to minutes), safe to cast for tracing
         #[allow(clippy::cast_possible_truncation)]
-        let _span = cache_span!("cache_insert_with_ttl", cache = "async", ttl_ms = ttl.as_millis() as u64);
+        let _span = cache_span!(
+            "cache_insert_with_ttl",
+            cache = "async",
+            ttl_ms = ttl.as_millis() as u64
+        );
 
         if let Some(ref neg) = self.negative {
             neg.invalidate(&key).await;
             cache_event!(debug, "cleared negative cache entry");
         }
-        self.positive.insert(key, CachedEntry::new(value, ttl)).await;
+        self.positive
+            .insert(key, CachedEntry::new(value, ttl))
+            .await;
         cache_event!(debug, "inserted entry with custom TTL");
         if let Some(ref stats) = self.stats {
             stats.record_insert();
@@ -1318,15 +1329,13 @@ where
 
     /// Returns the approximate number of entries in the negative cache.
     pub fn negative_len(&self) -> usize {
-        self.negative
-            .as_ref()
-            .map_or(0, |n| {
-                // Safe cast: entry_count() returns u64, which fits in usize on 64-bit systems
-                #[allow(clippy::cast_possible_truncation)]
-                {
-                    n.entry_count() as usize
-                }
-            })
+        self.negative.as_ref().map_or(0, |n| {
+            // Safe cast: entry_count() returns u64, which fits in usize on 64-bit systems
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                n.entry_count() as usize
+            }
+        })
     }
 
     /// Returns true if the positive cache is empty.
@@ -1947,7 +1956,10 @@ mod tests {
             "recreated",
             "Should see recreated value, not stale"
         );
-        assert!(!cache.is_negative(&42), "Should not be negative after insert");
+        assert!(
+            !cache.is_negative(&42),
+            "Should not be negative after insert"
+        );
     }
 
     /// Catches: per-entry TTL not honored (all entries use default TTL)
@@ -1967,14 +1979,8 @@ mod tests {
         thread::sleep(Duration::from_millis(50));
         cache.cleanup_expired();
 
-        assert!(
-            cache.get(&1).is_none(),
-            "Short TTL entry should be expired"
-        );
-        assert!(
-            cache.get(&2).is_some(),
-            "Long TTL entry should still exist"
-        );
+        assert!(cache.get(&1).is_none(), "Short TTL entry should be expired");
+        assert!(cache.get(&2).is_some(), "Long TTL entry should still exist");
     }
 
     /// Catches: value corruption (wrong value returned for key)
@@ -1995,11 +2001,10 @@ mod tests {
             // Test values are small (0..100), safe to cast
             #[allow(clippy::cast_possible_truncation)]
             let expected: Vec<u8> = (0..256).map(|b| ((b + i as usize) % 256) as u8).collect();
-            let actual = cache.get(&i).unwrap_or_else(|| panic!("Key {i} should exist"));
-            assert_eq!(
-                actual.value, expected,
-                "Value corruption at key {i}"
-            );
+            let actual = cache
+                .get(&i)
+                .unwrap_or_else(|| panic!("Key {i} should exist"));
+            assert_eq!(actual.value, expected, "Value corruption at key {i}");
         }
     }
 
@@ -2130,10 +2135,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
         cache.cleanup_expired().await;
 
-        assert!(
-            cache.get(&1).await.is_none(),
-            "Short TTL should be expired"
-        );
+        assert!(cache.get(&1).await.is_none(), "Short TTL should be expired");
         assert!(cache.get(&2).await.is_some(), "Long TTL should exist");
     }
 
@@ -2184,7 +2186,10 @@ mod tests {
 
         // Insert more entries than capacity to trigger evictions
         for i in 0..20 {
-            cache.insert(i, CachedEntry::new(format!("value-{i}"), Duration::from_secs(60)));
+            cache.insert(
+                i,
+                CachedEntry::new(format!("value-{i}"), Duration::from_secs(60)),
+            );
             stats.record_insert();
             // Run pending tasks to process evictions
             cache.run_pending_tasks();
@@ -2246,7 +2251,10 @@ mod tests {
             health.hit_rate
         );
         assert!(
-            health.warnings.iter().any(|w| matches!(w, CacheWarning::LowHitRate { .. })),
+            health
+                .warnings
+                .iter()
+                .any(|w| matches!(w, CacheWarning::LowHitRate { .. })),
             "Should have low hit rate warning"
         );
     }
@@ -2276,7 +2284,10 @@ mod tests {
             health.hit_rate
         );
         assert!(
-            !health.warnings.iter().any(|w| matches!(w, CacheWarning::LowHitRate { .. })),
+            !health
+                .warnings
+                .iter()
+                .any(|w| matches!(w, CacheWarning::LowHitRate { .. })),
             "Should not have low hit rate warning"
         );
     }
@@ -2288,7 +2299,10 @@ mod tests {
             threshold: 0.5,
         };
         let display = format!("{warning}");
-        assert!(display.contains("30.0%"), "Should display percentage: {display}");
+        assert!(
+            display.contains("30.0%"),
+            "Should display percentage: {display}"
+        );
 
         let warning = CacheWarning::HighEvictionRate {
             rate: 3.5,
@@ -2302,7 +2316,10 @@ mod tests {
             threshold: 0.3,
         };
         let display = format!("{warning}");
-        assert!(display.contains("45.0%"), "Should display percentage: {display}");
+        assert!(
+            display.contains("45.0%"),
+            "Should display percentage: {display}"
+        );
     }
 
     #[test]
@@ -2346,7 +2363,10 @@ mod tests {
         // Insert more entries than capacity to trigger evictions
         for i in 0..20 {
             cache
-                .insert(i, CachedEntry::new(format!("value-{i}"), Duration::from_secs(60)))
+                .insert(
+                    i,
+                    CachedEntry::new(format!("value-{i}"), Duration::from_secs(60)),
+                )
                 .await;
             stats.record_insert();
             // Run pending tasks to process evictions

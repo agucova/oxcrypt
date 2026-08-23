@@ -126,7 +126,7 @@ impl DesktopMountState {
                 }
                 Err(e) => {
                     return Err(e)
-                        .with_context(|| format!("Failed to lock: {}", self.lock_path.display()))
+                        .with_context(|| format!("Failed to lock: {}", self.lock_path.display()));
                 }
             }
         }
@@ -166,9 +166,7 @@ impl DesktopMountState {
     pub fn add_mount(&self, entry: MountEntry) -> Result<()> {
         self.with_lock(|state| {
             // Remove any existing entry for the same mountpoint
-            state
-                .mounts
-                .retain(|m| m.mountpoint != entry.mountpoint);
+            state.mounts.retain(|m| m.mountpoint != entry.mountpoint);
             state.mounts.push(entry);
             Ok(())
         })
@@ -204,7 +202,10 @@ impl DesktopMountState {
                     return false;
                 }
                 // Must be in system mounts
-                let canonical = m.mountpoint.canonicalize().unwrap_or_else(|_| m.mountpoint.clone());
+                let canonical = m
+                    .mountpoint
+                    .canonicalize()
+                    .unwrap_or_else(|_| m.mountpoint.clone());
                 system_mounts.contains(&canonical)
             })
             .collect();
@@ -264,8 +265,7 @@ impl DesktopMountState {
                 }
                 // If we have known vault paths, only include matching ones
                 // Otherwise include all orphans
-                known_vault_paths.is_empty()
-                    || known_vault_paths.iter().any(|p| p == &m.vault_path)
+                known_vault_paths.is_empty() || known_vault_paths.iter().any(|p| p == &m.vault_path)
             })
             .collect();
 
@@ -325,8 +325,8 @@ fn get_system_mounts() -> Result<std::collections::HashSet<PathBuf>> {
 
     #[cfg(target_os = "linux")]
     {
-        let contents = std::fs::read_to_string("/proc/mounts")
-            .context("Failed to read /proc/mounts")?;
+        let contents =
+            std::fs::read_to_string("/proc/mounts").context("Failed to read /proc/mounts")?;
         for line in contents.lines() {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {

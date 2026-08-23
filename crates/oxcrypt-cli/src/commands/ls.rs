@@ -13,7 +13,7 @@
 //! oxcrypt ~/vault ls --json / | jq '.entries[].name'
 //! ```
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::Args as ClapArgs;
 use serde::Serialize;
 use tracing::instrument;

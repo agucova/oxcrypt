@@ -330,6 +330,8 @@ impl FsSyscallExecutor {
     ///
     /// Returns `Err(SubmitError::QueueFull)` if the queue is at capacity.
     /// The caller should reply with EAGAIN in this case.
+    // The rejected job is returned in the Err variant so the caller can reclaim loaned resources.
+    #[allow(clippy::result_large_err)]
     pub fn try_submit(&self, job: ExecutorJob) -> Result<(), (SubmitError, ExecutorJob)> {
         if self.shutdown.load(Ordering::Acquire) {
             return Err((SubmitError::Shutdown, job));
@@ -450,24 +452,21 @@ fn worker_loop(
                     );
                     stats.record_complete(false, start.elapsed());
 
-                    // Return resources (especially the reader) to the scheduler
-                    match job.operation {
-                        ExecutorOperation::Read { reader, offset, .. } => {
-                            let result = ExecutorResult::Read(ReadResult {
-                                id: request_id,
-                                fh: job.fh,
-                                offset,
-                                result: Err(libc::ETIMEDOUT),
-                                reader,
-                            });
-                            let _ = job.result_tx.send(result);
-                            // Notify dispatcher that a result is ready
-                            if let Some(ref event) = completion_event {
-                                event.notify(1);
-                            }
+                    // Return resources (especially the reader) to the scheduler.
+                    // For other ops, dropping is fine as they don't hold loaned resources.
+                    if let ExecutorOperation::Read { reader, offset, .. } = job.operation {
+                        let result = ExecutorResult::Read(ReadResult {
+                            id: request_id,
+                            fh: job.fh,
+                            offset,
+                            result: Err(libc::ETIMEDOUT),
+                            reader,
+                        });
+                        let _ = job.result_tx.send(result);
+                        // Notify dispatcher that a result is ready
+                        if let Some(ref event) = completion_event {
+                            event.notify(1);
                         }
-                        // For other ops, dropping is fine as they don't hold loaned resources
-                        _ => {}
                     }
 
                     continue;

@@ -159,7 +159,10 @@ pub fn resolve_vault_alias(path_or_alias: &str) -> Result<PathBuf> {
                      [vaults.{}]\n\
                      path = \"/path/to/your/vault\"",
                     alias,
-                    config_path().map_or_else(|_| "~/.config/oxcrypt/config.toml".to_string(), |p| p.display().to_string()),
+                    config_path().map_or_else(
+                        |_| "~/.config/oxcrypt/config.toml".to_string(),
+                        |p| p.display().to_string()
+                    ),
                     alias
                 )
             } else {
@@ -170,8 +173,15 @@ pub fn resolve_vault_alias(path_or_alias: &str) -> Result<PathBuf> {
                      [vaults.{}]\n\
                      path = \"/path/to/your/vault\"",
                     alias,
-                    available.iter().map(|a| format!("@{a}")).collect::<Vec<_>>().join(", "),
-                    config_path().map_or_else(|_| "~/.config/oxcrypt/config.toml".to_string(), |p| p.display().to_string()),
+                    available
+                        .iter()
+                        .map(|a| format!("@{a}"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    config_path().map_or_else(
+                        |_| "~/.config/oxcrypt/config.toml".to_string(),
+                        |p| p.display().to_string()
+                    ),
                     alias
                 )
             }

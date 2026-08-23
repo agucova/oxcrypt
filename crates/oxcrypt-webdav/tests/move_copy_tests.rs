@@ -9,7 +9,9 @@
 
 mod common;
 
-use common::{assert_file_content, assert_not_found, multi_chunk_content, sha256, TestServer, CHUNK_SIZE};
+use common::{
+    CHUNK_SIZE, TestServer, assert_file_content, assert_not_found, multi_chunk_content, sha256,
+};
 use reqwest::StatusCode;
 
 // ============================================================================
@@ -49,9 +51,13 @@ async fn test_move_file_different_dir() {
     eprintln!("DEBUG: dest_dir PROPFIND status: {}", resp.status());
 
     let content = b"content to move across dirs";
-    server.put_ok("/source_dir/file.txt", content.to_vec()).await;
+    server
+        .put_ok("/source_dir/file.txt", content.to_vec())
+        .await;
 
-    let resp = server.move_("/source_dir/file.txt", "/dest_dir/file.txt", false).await;
+    let resp = server
+        .move_("/source_dir/file.txt", "/dest_dir/file.txt", false)
+        .await;
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
     eprintln!("DEBUG: MOVE response status: {status}, body: {body}");
@@ -74,7 +80,9 @@ async fn test_move_file_and_rename() {
     let content = b"move and rename content";
     server.put_ok("/from/oldname.txt", content.to_vec()).await;
 
-    let resp = server.move_("/from/oldname.txt", "/to/newname.txt", false).await;
+    let resp = server
+        .move_("/from/oldname.txt", "/to/newname.txt", false)
+        .await;
     assert!(
         resp.status().is_success() || resp.status() == StatusCode::CREATED,
         "Move+rename failed"
@@ -88,7 +96,9 @@ async fn test_move_file_and_rename() {
 async fn test_move_file_overwrite_true() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/source.txt", b"source content".to_vec()).await;
+    server
+        .put_ok("/source.txt", b"source content".to_vec())
+        .await;
     server.put_ok("/dest.txt", b"original dest".to_vec()).await;
 
     let resp = server.move_("/source.txt", "/dest.txt", true).await;
@@ -114,7 +124,9 @@ async fn test_move_large_file() {
 
     server.put_ok("/large_source.bin", content).await;
 
-    let resp = server.move_("/large_source.bin", "/large_dest.bin", false).await;
+    let resp = server
+        .move_("/large_source.bin", "/large_dest.bin", false)
+        .await;
     assert!(resp.status().is_success() || resp.status() == StatusCode::CREATED);
 
     assert_not_found(&server, "/large_source.bin").await;
@@ -147,7 +159,9 @@ async fn test_move_preserves_binary_content() {
     let content: Vec<u8> = (0u8..=255).collect();
 
     server.put_ok("/binary_source.bin", content.clone()).await;
-    server.move_("/binary_source.bin", "/binary_dest.bin", false).await;
+    server
+        .move_("/binary_source.bin", "/binary_dest.bin", false)
+        .await;
 
     assert_file_content(&server, "/binary_dest.bin", &content).await;
 }
@@ -163,7 +177,9 @@ async fn test_move_directory() {
     server.mkcol_ok("/olddir").await;
     server.mkcol_ok("/olddir/nested").await;
     server.put_ok("/olddir/file.txt", b"inside".to_vec()).await;
-    server.put_ok("/olddir/nested/deep.txt", b"deep".to_vec()).await;
+    server
+        .put_ok("/olddir/nested/deep.txt", b"deep".to_vec())
+        .await;
 
     let resp = server.move_("/olddir", "/newdir", false).await;
     let status = resp.status();
@@ -191,7 +207,9 @@ async fn test_move_directory_to_different_dir() {
     server.mkcol_ok("/dest").await;
     server.mkcol_ok("/src/dir").await;
     server.mkcol_ok("/src/dir/sub").await;
-    server.put_ok("/src/dir/sub/file.txt", b"cross dir".to_vec()).await;
+    server
+        .put_ok("/src/dir/sub/file.txt", b"cross dir".to_vec())
+        .await;
 
     let resp = server.move_("/src/dir", "/dest/dir", false).await;
     let status = resp.status();
@@ -213,7 +231,9 @@ async fn test_move_nested_directory() {
 
     server.mkcol_ok("/parent").await;
     server.mkcol_ok("/parent/child").await;
-    server.put_ok("/parent/child/deep.txt", b"deep content".to_vec()).await;
+    server
+        .put_ok("/parent/child/deep.txt", b"deep content".to_vec())
+        .await;
 
     let resp = server.move_("/parent", "/moved_parent", false).await;
     assert!(resp.status().is_success() || resp.status() == StatusCode::CREATED);
@@ -269,7 +289,9 @@ async fn test_copy_file_large() {
 async fn test_copy_file_overwrite() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/source.txt", b"source content".to_vec()).await;
+    server
+        .put_ok("/source.txt", b"source content".to_vec())
+        .await;
     server.put_ok("/dest.txt", b"original dest".to_vec()).await;
 
     let resp = server.copy("/source.txt", "/dest.txt", true).await;
@@ -288,12 +310,16 @@ async fn test_copy_then_modify_original() {
     let server = TestServer::with_temp_vault().await;
 
     let original_content = b"original content";
-    server.put_ok("/original.txt", original_content.to_vec()).await;
+    server
+        .put_ok("/original.txt", original_content.to_vec())
+        .await;
 
     server.copy("/original.txt", "/copy.txt", false).await;
 
     // Modify original
-    server.put_ok("/original.txt", b"modified original".to_vec()).await;
+    server
+        .put_ok("/original.txt", b"modified original".to_vec())
+        .await;
 
     // Copy should still have original content (independence)
     assert_file_content(&server, "/copy.txt", original_content).await;
@@ -305,7 +331,9 @@ async fn test_copy_then_modify_copy() {
     let server = TestServer::with_temp_vault().await;
 
     let original_content = b"original content";
-    server.put_ok("/original.txt", original_content.to_vec()).await;
+    server
+        .put_ok("/original.txt", original_content.to_vec())
+        .await;
 
     server.copy("/original.txt", "/copy.txt", false).await;
 
@@ -344,8 +372,12 @@ async fn test_copy_directory() {
 
     server.mkcol_ok("/original_dir").await;
     server.mkcol_ok("/original_dir/subdir").await;
-    server.put_ok("/original_dir/file.txt", b"file content".to_vec()).await;
-    server.put_ok("/original_dir/subdir/deep.txt", b"deep content".to_vec()).await;
+    server
+        .put_ok("/original_dir/file.txt", b"file content".to_vec())
+        .await;
+    server
+        .put_ok("/original_dir/subdir/deep.txt", b"deep content".to_vec())
+        .await;
 
     let resp = server.copy("/original_dir", "/copied_dir", false).await;
     let status = resp.status();
@@ -482,7 +514,9 @@ async fn test_move_preserves_chunk_boundaries() {
     let expected_hash = sha256(&content);
 
     server.put_ok("/boundary.bin", content).await;
-    server.move_("/boundary.bin", "/moved_boundary.bin", false).await;
+    server
+        .move_("/boundary.bin", "/moved_boundary.bin", false)
+        .await;
 
     let retrieved = server.get_bytes("/moved_boundary.bin").await.unwrap();
     assert_eq!(sha256(&retrieved), expected_hash);

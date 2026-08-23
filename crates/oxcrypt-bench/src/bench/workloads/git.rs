@@ -8,13 +8,17 @@
 //! for testing repository operations on encrypted storage.
 
 // Allow helper method patterns, debug formatting, and recursive helpers
-#![allow(clippy::unused_self, clippy::unnecessary_debug_formatting, clippy::self_only_used_in_recursion)]
+#![allow(
+    clippy::unused_self,
+    clippy::unnecessary_debug_formatting,
+    clippy::self_only_used_in_recursion
+)]
 
 use crate::assets::{AssetDownloader, manifest::GIT_RIPGREP};
-use crate::bench::{Benchmark, PhaseProgress, PhaseProgressCallback};
 use crate::bench::workloads::WorkloadConfig;
+use crate::bench::{Benchmark, PhaseProgress, PhaseProgressCallback};
 use crate::config::OperationType;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use git2::{IndexAddOption, Repository, Signature};
 use oxcrypt_mount::safe_sync;
 use rand::prelude::*;
@@ -68,9 +72,12 @@ impl GitWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_git_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_git_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn repo_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -78,13 +85,13 @@ impl GitWorkload {
     }
 
     /// Create the signature for commits.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn signature(&self) -> Result<Signature<'static>> {
         Ok(Signature::now("Benchmark User", "bench@example.com")?)
     }
 
     /// Extract ripgrep source zip to the repo directory.
-    #[allow(clippy::unused_self)]  // May access self fields in future
+    #[allow(clippy::unused_self)] // May access self fields in future
     fn extract_ripgrep(&self, repo_path: &Path) -> Result<()> {
         let downloader = AssetDownloader::new()?;
 
@@ -93,20 +100,19 @@ impl GitWorkload {
 
         // Extract zip file
         tracing::debug!("Extracting ripgrep source to {:?}", repo_path);
-        let zip_bytes = fs::read(&zip_path)
-            .with_context(|| format!("Failed to read {zip_path:?}"))?;
+        let zip_bytes =
+            fs::read(&zip_path).with_context(|| format!("Failed to read {zip_path:?}"))?;
 
         // Open zip archive
         let cursor = Cursor::new(zip_bytes);
-        let mut archive = ZipArchive::new(cursor)
-            .context("Failed to open zip archive")?;
+        let mut archive = ZipArchive::new(cursor).context("Failed to open zip archive")?;
 
         // Extract all files
         for i in 0..archive.len() {
-            let mut file = archive.by_index(i)
+            let mut file = archive
+                .by_index(i)
                 .with_context(|| format!("Failed to read zip entry {i}"))?;
-            let file_path = file.enclosed_name()
-                .context("Invalid zip entry path")?;
+            let file_path = file.enclosed_name().context("Invalid zip entry path")?;
 
             // Strip top-level directory (e.g., "ripgrep-14.1.0/")
             let relative_path = file_path.components().skip(1).collect::<PathBuf>();
@@ -151,7 +157,7 @@ impl GitWorkload {
         Ok(files)
     }
 
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_files(&self, base: &Path, dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -185,10 +191,12 @@ impl GitWorkload {
 
         writeln!(content, "// Benchmark generated file {index}")
             .expect("Failed to write to in-memory buffer - system OOM");
-        writeln!(content, "// This file was created during the git workload benchmark")
-            .expect("Failed to write to in-memory buffer - system OOM");
-        writeln!(content)
-            .expect("Failed to write to in-memory buffer - system OOM");
+        writeln!(
+            content,
+            "// This file was created during the git workload benchmark"
+        )
+        .expect("Failed to write to in-memory buffer - system OOM");
+        writeln!(content).expect("Failed to write to in-memory buffer - system OOM");
 
         while content.len() < size {
             let line: String = (0..60)
@@ -251,16 +259,24 @@ impl Benchmark for GitWorkload {
 
         // Stage all files
         let mut index = repo.index().context("Failed to get repo index")?;
-        index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)
-            .map_err(|e| anyhow!("Failed to add files to index: {} (code: {:?}, class: {:?})",
-                                 e.message(), e.code(), e.class()))?;
+        index
+            .add_all(["*"].iter(), IndexAddOption::DEFAULT, None)
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to add files to index: {} (code: {:?}, class: {:?})",
+                    e.message(),
+                    e.code(),
+                    e.class()
+                )
+            })?;
         index.write().context("Failed to write index")?;
 
         // Create initial commit
         let tree_id = index.write_tree().context("Failed to write tree")?;
         tracing::debug!("Wrote tree with ID: {}", tree_id);
-        let tree = repo.find_tree(tree_id)
-            .context(format!("Failed to find tree {}", tree_id))?;
+        let tree = repo
+            .find_tree(tree_id)
+            .context(format!("Failed to find tree {tree_id}"))?;
         let sig = self.signature()?;
 
         repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
@@ -410,8 +426,8 @@ impl Benchmark for GitWorkload {
                 let commit = repo.find_commit(oid)?;
 
                 // Read commit metadata
-                std::hint::black_box(commit.message());
-                std::hint::black_box(commit.author().name());
+                let _ = std::hint::black_box(commit.message());
+                let _ = std::hint::black_box(commit.author().name());
                 std::hint::black_box(commit.time().seconds());
 
                 // Optionally read the tree (simulates git show)
@@ -450,7 +466,7 @@ impl Benchmark for GitWorkload {
     }
 
     fn requires_symlinks(&self) -> bool {
-        true  // Git workload requires symlink support
+        true // Git workload requires symlink support
     }
 
     fn phases(&self) -> Option<&[&'static str]> {
@@ -626,8 +642,8 @@ impl Benchmark for GitWorkload {
                 let oid = oid?;
                 let commit = repo.find_commit(oid)?;
 
-                std::hint::black_box(commit.message());
-                std::hint::black_box(commit.author().name());
+                let _ = std::hint::black_box(commit.message());
+                let _ = std::hint::black_box(commit.author().name());
                 std::hint::black_box(commit.time().seconds());
 
                 let tree = commit.tree()?;

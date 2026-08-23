@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::backend::{mount_manager, ActivityStatus, SchedulerStatsSnapshot, VaultStats};
+use crate::backend::{ActivityStatus, SchedulerStatsSnapshot, VaultStats, mount_manager};
 use crate::state::ThemePreference;
 
 /// Number of samples to keep in history (120 samples * 500ms = 60 seconds)
@@ -82,7 +82,8 @@ impl ThroughputHistory {
             self.smoothed_write = instant_write;
         } else {
             self.smoothed_read = EMA_ALPHA * instant_read + (1.0 - EMA_ALPHA) * self.smoothed_read;
-            self.smoothed_write = EMA_ALPHA * instant_write + (1.0 - EMA_ALPHA) * self.smoothed_write;
+            self.smoothed_write =
+                EMA_ALPHA * instant_write + (1.0 - EMA_ALPHA) * self.smoothed_write;
         }
 
         // Add smoothed sample to history
@@ -172,22 +173,22 @@ struct ChartColors {
 impl ChartColors {
     fn light() -> Self {
         Self {
-            background: "#f3f4f6",  // gray-100
-            text: "#6b7280",        // gray-500
-            read_line: "#3b82f6",   // blue-500
-            read_fill: "#3b82f620", // blue-500 with alpha
-            write_line: "#f59e0b",  // amber-500
+            background: "#f3f4f6",   // gray-100
+            text: "#6b7280",         // gray-500
+            read_line: "#3b82f6",    // blue-500
+            read_fill: "#3b82f620",  // blue-500 with alpha
+            write_line: "#f59e0b",   // amber-500
             write_fill: "#f59e0b20", // amber-500 with alpha
         }
     }
 
     fn dark() -> Self {
         Self {
-            background: "#1f2937",  // gray-800
-            text: "#d1d5db",        // gray-300 (lighter for better contrast)
-            read_line: "#60a5fa",   // blue-400
-            read_fill: "#60a5fa30", // blue-400 with alpha
-            write_line: "#fbbf24",  // amber-400
+            background: "#1f2937",   // gray-800
+            text: "#d1d5db",         // gray-300 (lighter for better contrast)
+            read_line: "#60a5fa",    // blue-400
+            read_fill: "#60a5fa30",  // blue-400 with alpha
+            write_line: "#fbbf24",   // amber-400
             write_fill: "#fbbf2430", // amber-400 with alpha
         }
     }
@@ -217,7 +218,12 @@ fn parse_hex_color_alpha(hex: &str) -> (u8, u8, u8, f64) {
 }
 
 /// Render throughput chart as SVG string
-fn render_throughput_chart(history: &ThroughputHistory, is_dark: bool, width: u32, height: u32) -> String {
+fn render_throughput_chart(
+    history: &ThroughputHistory,
+    is_dark: bool,
+    width: u32,
+    height: u32,
+) -> String {
     use plotters::prelude::*;
 
     let colors = if is_dark {
@@ -256,7 +262,11 @@ fn render_throughput_chart(history: &ThroughputHistory, is_dark: bool, width: u3
             .y_labels(4)
             .y_desc("")
             .axis_style(RGBColor(text_color.0, text_color.1, text_color.2))
-            .label_style(("sans-serif", 12, &RGBColor(text_color.0, text_color.1, text_color.2)))
+            .label_style((
+                "sans-serif",
+                12,
+                &RGBColor(text_color.0, text_color.1, text_color.2),
+            ))
             .x_label_formatter(&|x| {
                 // x=0 is 60s ago, x=60 is now
                 // x is always in [0, 60] range, safe to cast to i32
@@ -302,8 +312,12 @@ fn render_throughput_chart(history: &ThroughputHistory, is_dark: bool, width: u3
             chart
                 .draw_series(LineSeries::new(
                     read_data.iter().copied(),
-                    ShapeStyle::from(&RGBColor(read_line_color.0, read_line_color.1, read_line_color.2))
-                        .stroke_width(2),
+                    ShapeStyle::from(&RGBColor(
+                        read_line_color.0,
+                        read_line_color.1,
+                        read_line_color.2,
+                    ))
+                    .stroke_width(2),
                 ))
                 .ok();
 
@@ -332,8 +346,12 @@ fn render_throughput_chart(history: &ThroughputHistory, is_dark: bool, width: u3
             chart
                 .draw_series(LineSeries::new(
                     write_data.iter().copied(),
-                    ShapeStyle::from(&RGBColor(write_line_color.0, write_line_color.1, write_line_color.2))
-                        .stroke_width(2),
+                    ShapeStyle::from(&RGBColor(
+                        write_line_color.0,
+                        write_line_color.1,
+                        write_line_color.2,
+                    ))
+                    .stroke_width(2),
                 ))
                 .ok();
         }
@@ -345,7 +363,12 @@ fn render_throughput_chart(history: &ThroughputHistory, is_dark: bool, width: u3
 }
 
 /// Render queue depth chart as stacked area SVG string
-fn render_queue_depth_chart(history: &QueueDepthHistory, is_dark: bool, width: u32, height: u32) -> String {
+fn render_queue_depth_chart(
+    history: &QueueDepthHistory,
+    is_dark: bool,
+    width: u32,
+    height: u32,
+) -> String {
     use plotters::prelude::*;
 
     // Lane colors (same as LaneCountChip): Control, Metadata, Read, Write, Bulk
@@ -393,7 +416,11 @@ fn render_queue_depth_chart(history: &QueueDepthHistory, is_dark: bool, width: u
             .y_labels(4)
             .y_desc("")
             .axis_style(RGBColor(text_color.0, text_color.1, text_color.2))
-            .label_style(("sans-serif", 12, &RGBColor(text_color.0, text_color.1, text_color.2)))
+            .label_style((
+                "sans-serif",
+                12,
+                &RGBColor(text_color.0, text_color.1, text_color.2),
+            ))
             .x_label_formatter(&|x| {
                 #[allow(clippy::cast_possible_truncation)]
                 let secs_ago = (60.0 - x).round() as i32;
@@ -655,8 +682,20 @@ fn StatsContent(
     let write_latency_str = format!("{} avg", format_latency(write_latency_ms));
     let cache_rate_str = format!("{:.0}%", hit_rate * 100.0);
     let queue_total_str = format!("{queue_total}");
-    let cache_color = if hit_rate >= 0.7 { "green" } else if hit_rate >= 0.5 { "amber" } else { "red" };
-    let queue_color = if queue_total == 0 { "gray" } else if queue_total <= 5 { "blue" } else { "amber" };
+    let cache_color = if hit_rate >= 0.7 {
+        "green"
+    } else if hit_rate >= 0.5 {
+        "amber"
+    } else {
+        "red"
+    };
+    let queue_color = if queue_total == 0 {
+        "gray"
+    } else if queue_total <= 5 {
+        "blue"
+    } else {
+        "amber"
+    };
     let session_str = format_duration(session_duration);
 
     rsx! {
@@ -813,7 +852,12 @@ fn StatsContent(
 
 /// Compact metric card for the top row
 #[component]
-fn CompactMetricCard(label: &'static str, value: String, detail: String, color: &'static str) -> Element {
+fn CompactMetricCard(
+    label: &'static str,
+    value: String,
+    detail: String,
+    color: &'static str,
+) -> Element {
     // Color mapping for accent bar
     let accent_class = match color {
         "blue" => "bg-blue-500",

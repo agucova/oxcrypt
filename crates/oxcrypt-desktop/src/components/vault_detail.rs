@@ -1,7 +1,7 @@
 //! Vault detail panel component
 
 use dioxus::prelude::*;
-use oxcrypt_mount::{find_processes_using_mount, format_bytes, ProcessInfo};
+use oxcrypt_mount::{ProcessInfo, find_processes_using_mount, format_bytes};
 use std::time::Duration;
 
 use crate::icons::{Icon, IconColor, IconName, IconSize};
@@ -16,11 +16,14 @@ enum ForceLockContext {
     BackendChange,
 }
 
-use crate::backend::{generate_mountpoint, mount_manager, MountOptions};
 use crate::app::open_stats_window;
-use crate::dialogs::{BackendDialog, ChangePasswordDialog, ConfirmDialog, ErrorDialog, ForceLockDialog, UnlockDialog, VaultMountSettings};
+use crate::backend::{MountOptions, generate_mountpoint, mount_manager};
+use crate::dialogs::{
+    BackendDialog, ChangePasswordDialog, ConfirmDialog, ErrorDialog, ForceLockDialog, UnlockDialog,
+    VaultMountSettings,
+};
 use crate::error::UserFacingError;
-use crate::state::{use_app_state, VaultState};
+use crate::state::{VaultState, use_app_state};
 
 /// Detail panel showing information and actions for the selected vault
 #[component]
@@ -51,7 +54,7 @@ pub fn VaultDetail(
                 class: "p-6 text-center text-gray-600 dark:text-gray-400",
                 "Vault not found"
             }
-        }
+        };
     };
 
     let (status_icon_name, status_icon_class, status_icon_color) = match &vault.state {
@@ -92,22 +95,34 @@ pub fn VaultDetail(
             spawn(async move {
                 // Two-phase unlock: validate password first, then mount
                 // This gives fast feedback on wrong passwords and protects against stale mounts
-                use oxcrypt_core::vault::{PasswordValidator, PasswordValidationError, DEFAULT_VALIDATION_TIMEOUT};
+                use oxcrypt_core::vault::{
+                    DEFAULT_VALIDATION_TIMEOUT, PasswordValidationError, PasswordValidator,
+                };
 
                 tracing::info!("[UNLOCK] Async task started for vault at {:?}", vault_path);
 
                 // Phase 1: Validate password with timeout protection
                 let vault_path_for_validation = vault_path.clone();
                 let password_for_validation = password.clone();
-                tracing::info!("[UNLOCK] Phase 1: About to spawn_blocking for password validation...");
+                tracing::info!(
+                    "[UNLOCK] Phase 1: About to spawn_blocking for password validation..."
+                );
                 let validation_result = tokio::task::spawn_blocking(move || {
                     tracing::info!("[UNLOCK] spawn_blocking: ENTERED - Creating PasswordValidator");
                     let validator = PasswordValidator::new(&vault_path_for_validation);
-                    tracing::info!("[UNLOCK] spawn_blocking: Calling validate() with {:?} timeout", DEFAULT_VALIDATION_TIMEOUT);
-                    let result = validator.validate(&password_for_validation, DEFAULT_VALIDATION_TIMEOUT);
-                    tracing::info!("[UNLOCK] spawn_blocking: validate() returned: {:?}", result.as_ref().map(|_| "Ok").unwrap_or("Err"));
+                    tracing::info!(
+                        "[UNLOCK] spawn_blocking: Calling validate() with {:?} timeout",
+                        DEFAULT_VALIDATION_TIMEOUT
+                    );
+                    let result =
+                        validator.validate(&password_for_validation, DEFAULT_VALIDATION_TIMEOUT);
+                    tracing::info!(
+                        "[UNLOCK] spawn_blocking: validate() returned: {:?}",
+                        result.as_ref().map(|_| "Ok").unwrap_or("Err")
+                    );
                     result
-                }).await;
+                })
+                .await;
                 tracing::info!("[UNLOCK] Phase 1: spawn_blocking completed, processing result...");
 
                 // Handle validation result
@@ -147,15 +162,24 @@ pub fn VaultDetail(
                                 format!("Cryptographic error: {crypto_err}")
                             }
                         };
-                        tracing::info!("[UNLOCK] About to set unlock_result with error: {}", error_msg);
+                        tracing::info!(
+                            "[UNLOCK] About to set unlock_result with error: {}",
+                            error_msg
+                        );
                         unlock_result.set(Some(Err(error_msg)));
-                        tracing::info!("[UNLOCK] unlock_result.set() completed, returning from async task");
+                        tracing::info!(
+                            "[UNLOCK] unlock_result.set() completed, returning from async task"
+                        );
                         return;
                     }
                     Err(e) => {
                         tracing::error!("[UNLOCK] Validation task panicked: {}", e);
-                        unlock_result.set(Some(Err("Internal error during password validation".to_string())));
-                        tracing::info!("[UNLOCK] unlock_result.set() completed after panic, returning");
+                        unlock_result.set(Some(Err(
+                            "Internal error during password validation".to_string()
+                        )));
+                        tracing::info!(
+                            "[UNLOCK] unlock_result.set() completed after panic, returning"
+                        );
                         return;
                     }
                 };
@@ -182,7 +206,14 @@ pub fn VaultDetail(
                 // Run mount in blocking task using the vault's preferred backend
                 // Use vault_id as the key for mount tracking (must match unmount calls)
                 let result = tokio::task::spawn_blocking(move || {
-                    manager.mount_with_backend_and_options(&vault_id, &vault_path, &password, &mountpoint, preferred_backend, &mount_options)
+                    manager.mount_with_backend_and_options(
+                        &vault_id,
+                        &vault_path,
+                        &password,
+                        &mountpoint,
+                        preferred_backend,
+                        &mount_options,
+                    )
                 })
                 .await;
 
@@ -190,9 +221,10 @@ pub fn VaultDetail(
                     Ok(Ok(mp)) => {
                         tracing::info!("Vault {} mounted at {}", vault_id_for_log, mp.display());
                         let mountpoint = mp.clone();
-                        app_state
-                            .write()
-                            .set_vault_state(&vault_id_for_state, VaultState::Mounted { mountpoint });
+                        app_state.write().set_vault_state(
+                            &vault_id_for_state,
+                            VaultState::Mounted { mountpoint },
+                        );
 
                         // Register FileProvider domain with recovery service (if applicable)
                         mount_manager().register_fileprovider_domain(
@@ -219,8 +251,11 @@ pub fn VaultDetail(
                                     || msg.contains("decryption failed")
                                 {
                                     "Incorrect password. Please try again.".to_string()
-                                } else if msg.contains("vault.cryptomator") || msg.contains("not found") {
-                                    "Invalid vault: Could not find vault configuration file.".to_string()
+                                } else if msg.contains("vault.cryptomator")
+                                    || msg.contains("not found")
+                                {
+                                    "Invalid vault: Could not find vault configuration file."
+                                        .to_string()
                                 } else {
                                     format!("Failed to open vault: {msg}")
                                 }
@@ -244,23 +279,31 @@ pub fn VaultDetail(
                                 }
                                 // macFUSE not installed or not loaded - look for specific indicators
                                 else if err_str_lower.contains("no such file or directory")
-                                    && (err_str_lower.contains("fuse") || err_str_lower.contains("osxfuse") || err_str_lower.contains("macfuse"))
+                                    && (err_str_lower.contains("fuse")
+                                        || err_str_lower.contains("osxfuse")
+                                        || err_str_lower.contains("macfuse"))
                                 {
                                     "FUSE mount failed. Is macFUSE installed? Download from https://osxfuse.github.io/".to_string()
                                 }
                                 // macFUSE needs kernel extension approval
-                                else if err_str_lower.contains("kext") || err_str_lower.contains("system extension")
+                                else if err_str_lower.contains("kext")
+                                    || err_str_lower.contains("system extension")
                                     || err_str_lower.contains("kernel extension")
                                 {
                                     "macFUSE kernel extension needs approval. Check System Settings → Privacy & Security.".to_string()
                                 }
                                 // Timeout
-                                else if err_kind == std::io::ErrorKind::TimedOut || err_str.contains("timed out") {
+                                else if err_kind == std::io::ErrorKind::TimedOut
+                                    || err_str.contains("timed out")
+                                {
                                     "Mount operation timed out. The filesystem may be slow to respond.".to_string()
                                 }
                                 // Resource busy
-                                else if err_str_lower.contains("busy") || err_str_lower.contains("ebusy") {
-                                    "Mount point is busy. Try unmounting any existing mounts first.".to_string()
+                                else if err_str_lower.contains("busy")
+                                    || err_str_lower.contains("ebusy")
+                                {
+                                    "Mount point is busy. Try unmounting any existing mounts first."
+                                        .to_string()
                                 }
                                 // Mount point doesn't exist or invalid
                                 else if err_kind == std::io::ErrorKind::NotFound {
@@ -268,14 +311,20 @@ pub fn VaultDetail(
                                 }
                                 // Generic fallback - show the actual error
                                 else {
-                                    format!("{} mount failed: {io_err}", preferred_backend.display_name())
+                                    format!(
+                                        "{} mount failed: {io_err}",
+                                        preferred_backend.display_name()
+                                    )
                                 }
                             }
                             crate::backend::MountError::MountPointNotFound(path) => {
                                 format!("Mount location not found: {}", path.display())
                             }
                             crate::backend::MountError::BackendUnavailable(reason) => {
-                                format!("{} is not available: {reason}", preferred_backend.display_name())
+                                format!(
+                                    "{} is not available: {reason}",
+                                    preferred_backend.display_name()
+                                )
                             }
                             other => format!("Mount failed: {other}"),
                         };
@@ -822,7 +871,11 @@ fn ActionButton(
     onclick: EventHandler<()>,
     #[props(default = false)] secondary: bool,
 ) -> Element {
-    let class = if secondary { "btn-action btn-action-secondary" } else { "btn-action btn-action-primary" };
+    let class = if secondary {
+        "btn-action btn-action-secondary"
+    } else {
+        "btn-action btn-action-primary"
+    };
     rsx! {
         button {
             class: "{class}",

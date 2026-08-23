@@ -146,7 +146,9 @@ async fn test_put_no_parent_behavior() {
 
     // PUT to a path where parent doesn't exist
     // WebDAV behavior varies - some servers auto-create parents, others return 409
-    let resp = server.put("/missing_parent/file.txt", b"content".to_vec()).await;
+    let resp = server
+        .put("/missing_parent/file.txt", b"content".to_vec())
+        .await;
 
     // We accept either 409 (strict) or 2xx (auto-create parent)
     let status = resp.status();
@@ -179,7 +181,9 @@ async fn test_mkcol_on_existing_dir_returns_405() {
 async fn test_mkcol_on_existing_file_returns_405() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/existingfile.txt", b"content".to_vec()).await;
+    server
+        .put_ok("/existingfile.txt", b"content".to_vec())
+        .await;
 
     let resp = server.mkcol("/existingfile.txt").await;
     assert_eq!(
@@ -214,7 +218,9 @@ async fn test_put_to_directory_fails() {
 async fn test_move_nonexistent_source_returns_404() {
     let server = TestServer::with_temp_vault().await;
 
-    let resp = server.move_("/nonexistent.txt", "/destination.txt", false).await;
+    let resp = server
+        .move_("/nonexistent.txt", "/destination.txt", false)
+        .await;
     assert_eq!(
         resp.status(),
         StatusCode::NOT_FOUND,
@@ -226,7 +232,9 @@ async fn test_move_nonexistent_source_returns_404() {
 async fn test_copy_nonexistent_source_returns_404() {
     let server = TestServer::with_temp_vault().await;
 
-    let resp = server.copy("/nonexistent.txt", "/destination.txt", false).await;
+    let resp = server
+        .copy("/nonexistent.txt", "/destination.txt", false)
+        .await;
     assert_eq!(
         resp.status(),
         StatusCode::NOT_FOUND,
@@ -276,7 +284,9 @@ async fn test_move_to_nonexistent_parent() {
 
     server.put_ok("/source.txt", b"content".to_vec()).await;
 
-    let resp = server.move_("/source.txt", "/missing_parent/dest.txt", true).await;
+    let resp = server
+        .move_("/source.txt", "/missing_parent/dest.txt", true)
+        .await;
 
     assert_eq!(
         resp.status(),
@@ -294,7 +304,9 @@ async fn test_delete_nonempty_dir_behavior() {
     let server = TestServer::with_temp_vault().await;
 
     server.mkcol_ok("/nonempty").await;
-    server.put_ok("/nonempty/file.txt", b"content".to_vec()).await;
+    server
+        .put_ok("/nonempty/file.txt", b"content".to_vec())
+        .await;
 
     server.delete_ok("/nonempty").await;
 
@@ -356,7 +368,9 @@ async fn test_path_traversal_encoded() {
 async fn test_path_traversal_put() {
     let server = TestServer::with_temp_vault().await;
 
-    let resp = server.put("/../../../tmp/malicious", b"evil".to_vec()).await;
+    let resp = server
+        .put("/../../../tmp/malicious", b"evil".to_vec())
+        .await;
 
     let status = resp.status();
     assert!(
@@ -457,12 +471,7 @@ async fn test_special_webdav_paths() {
     let server = TestServer::with_temp_vault().await;
 
     // Paths that might have special meaning in WebDAV
-    for path in &[
-        "/.DAV/",
-        "/_vti_bin/",
-        "/DAV:",
-        "/\\",
-    ] {
+    for path in &["/.DAV/", "/_vti_bin/", "/DAV:", "/\\"] {
         let resp = server.get(path).await;
         // Should not panic, return some status
         let _ = resp.status();

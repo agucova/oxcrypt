@@ -5,7 +5,7 @@
 //! attempting automatic recovery when possible.
 
 #[cfg(feature = "fileprovider")]
-use oxcrypt_fileprovider::recovery::{DomainInfo, DomainHealth, RecoveryManager};
+use oxcrypt_fileprovider::recovery::{DomainHealth, DomainInfo, RecoveryManager};
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -95,7 +95,10 @@ impl FileProviderRecoveryService {
             password_available: true, // FileProvider stores password in Keychain
         };
 
-        info!("Registering FileProvider domain for monitoring: {}", info.display_name);
+        info!(
+            "Registering FileProvider domain for monitoring: {}",
+            info.display_name
+        );
         self.manager.monitor_domain(info).await;
     }
 
@@ -103,7 +106,10 @@ impl FileProviderRecoveryService {
     ///
     /// Call this when a vault is unmounted.
     pub async fn unregister_domain(&self, domain_id: &str) {
-        debug!("Unregistering FileProvider domain from monitoring: {}", domain_id);
+        debug!(
+            "Unregistering FileProvider domain from monitoring: {}",
+            domain_id
+        );
         self.manager.stop_monitoring(domain_id).await;
     }
 

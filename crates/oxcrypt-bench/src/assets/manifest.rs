@@ -114,9 +114,7 @@ pub static MEDIA_TOS_720P: Asset = Asset {
     id: "tos-720p",
     name: "Tears of Steel 720p",
     url: "https://download.blender.org/demo/movies/ToS/ToS-4k-1920.mov",
-    mirrors: &[
-        "https://mirrors.dotsrc.org/blender/demo/movies/ToS/tears_of_steel_720p.mov",
-    ],
+    mirrors: &["https://mirrors.dotsrc.org/blender/demo/movies/ToS/tears_of_steel_720p.mov"],
     sha256: "bd2b5bc6c16d4085034f47ef7e4b3938afe86b4eec4ac3cf2685367d3b0b23b0",
     size: 738_876_331, // ~705 MB
     license: "CC-BY-3.0",
@@ -126,7 +124,7 @@ pub static MEDIA_TOS_720P: Asset = Asset {
 };
 
 /// Kodak True Color Image Suite - 24 lossless PNG images.
-/// Source: https://github.com/threeonetree/mini-imagenet-and-kodak-datasets
+/// Source: <https://github.com/threeonetree/mini-imagenet-and-kodak-datasets>
 pub static PHOTO_KODAK: Asset = Asset {
     id: "kodak-suite",
     name: "Kodak True Color Image Suite",
@@ -159,9 +157,7 @@ pub static ARCHIVE_NODEJS: Asset = Asset {
     id: "nodejs-src",
     name: "Node.js Source",
     url: "https://nodejs.org/dist/v20.10.0/node-v20.10.0.tar.gz",
-    mirrors: &[
-        "https://nodejs.org/download/release/v20.10.0/node-v20.10.0.tar.gz",
-    ],
+    mirrors: &["https://nodejs.org/download/release/v20.10.0/node-v20.10.0.tar.gz"],
     sha256: "89680f4ebbf36e0a199be4ed416701fa167aad8f86111c87a3db9207b5d56baa",
     size: 88_359_142, // ~84 MB
     license: "MIT",

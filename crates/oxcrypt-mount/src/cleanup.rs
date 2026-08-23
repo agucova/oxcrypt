@@ -42,9 +42,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use crate::force_unmount::force_unmount;
-use crate::mount_markers::{get_system_mounts_detailed, SystemMount};
+use crate::mount_markers::{SystemMount, get_system_mounts_detailed};
 use crate::stale_detection::{
-    check_mount_status, find_orphaned_mounts, MountStatus, StaleReason, TrackedMount,
+    MountStatus, StaleReason, TrackedMount, check_mount_status, find_orphaned_mounts,
 };
 
 /// Result of cleaning up a single mount.
@@ -288,9 +288,7 @@ fn process_tracked_mount(
             error: Some(error),
         },
 
-        MountStatus::Stale { reason } => {
-            handle_stale_mount(tracked, reason, options)
-        }
+        MountStatus::Stale { reason } => handle_stale_mount(tracked, reason, options),
     }
 }
 
@@ -385,10 +383,7 @@ pub fn cleanup_test_mounts() -> Result<Vec<CleanupResult>> {
         }
 
         // Force unmount test mount (no responsiveness check - tests should be robust)
-        tracing::info!(
-            "Cleaning up test mount: {}",
-            mount.mountpoint.display()
-        );
+        tracing::info!("Cleaning up test mount: {}", mount.mountpoint.display());
 
         match force_unmount(&mount.mountpoint) {
             Ok(()) => {

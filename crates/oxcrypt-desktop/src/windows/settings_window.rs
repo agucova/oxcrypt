@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-use crate::backend::{mount_manager, BackendInfo};
+use crate::backend::{BackendInfo, mount_manager};
 use crate::state::{AppConfig, BackendType, ThemePreference};
 
 /// Active tab in the settings window
@@ -399,7 +399,8 @@ fn BackendSelector(props: BackendSelectorProps) -> Element {
     // Find the display name for current backend
     let current_display = backends
         .iter()
-        .find(|b| b.backend_type == props.current_backend).map_or_else(|| props.current_backend.display_name(), |b| b.name.as_str());
+        .find(|b| b.backend_type == props.current_backend)
+        .map_or_else(|| props.current_backend.display_name(), |b| b.name.as_str());
 
     rsx! {
         div {

@@ -14,13 +14,12 @@ use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::instrument;
 
 use oxcrypt_mount::{
-    BackendType, MountBackend, MountHandle,
-    first_available_backend, select_backend,
+    BackendType, MountBackend, MountHandle, first_available_backend, select_backend,
 };
 
 #[cfg(feature = "fuse")]
@@ -104,7 +103,9 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
     // Get backend
     let backends = build_backends();
     if backends.is_empty() {
-        anyhow::bail!("No mount backends enabled. Rebuild with --features fuse, --features webdav, or --features nfs");
+        anyhow::bail!(
+            "No mount backends enabled. Rebuild with --features fuse, --features webdav, or --features nfs"
+        );
     }
 
     let backend = match args.backend {
@@ -112,15 +113,14 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
             let backend_type: BackendType = arg.into();
             select_backend(&backends, backend_type).context("Failed to get mount backend")?
         }
-        None => {
-            first_available_backend(&backends).context("No mount backend available")?
-        }
+        None => first_available_backend(&backends).context("No mount backend available")?,
     };
 
     eprintln!("Mounting vault with {} backend...", backend.name());
 
     // Generate vault ID
-    let vault_id = args.vault
+    let vault_id = args
+        .vault
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("vault");
@@ -145,7 +145,9 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
     .context("Failed to set signal handler")?;
 
     // Run the command
-    let (program, cmd_args) = args.command.split_first()
+    let (program, cmd_args) = args
+        .command
+        .split_first()
         .ok_or_else(|| anyhow::anyhow!("No command specified"))?;
 
     eprintln!("Running: {} {}", program, cmd_args.join(" "));

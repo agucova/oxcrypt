@@ -156,9 +156,10 @@ fn render_sf_symbol(name: &str, size: u32, weight: f64, color: Option<&str>) -> 
 
         // Apply tint color if specified
         if let Some(hex) = color
-            && let Some((r, g, b)) = parse_hex_color(hex) {
-                apply_tint(&mut img, r, g, b);
-            }
+            && let Some((r, g, b)) = parse_hex_color(hex)
+        {
+            apply_tint(&mut img, r, g, b);
+        }
 
         // Encode as PNG
         let mut png_bytes = Vec::new();
@@ -201,7 +202,10 @@ mod tests {
     #[test]
     fn test_render_nonexistent_symbol() {
         let result = render_sf_symbol("this.symbol.does.not.exist.12345", 24, 0.0, None);
-        assert!(result.is_none(), "Should return None for nonexistent symbol");
+        assert!(
+            result.is_none(),
+            "Should return None for nonexistent symbol"
+        );
     }
 
     #[test]

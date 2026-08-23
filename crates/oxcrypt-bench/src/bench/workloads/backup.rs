@@ -13,7 +13,7 @@
 // Allow recursive helpers
 #![allow(clippy::self_only_used_in_recursion)]
 
-use crate::bench::workloads::{copy_file_contents, WorkloadConfig};
+use crate::bench::workloads::{WorkloadConfig, copy_file_contents};
 use crate::bench::{Benchmark, PhaseProgress, PhaseProgressCallback};
 use crate::config::OperationType;
 use anyhow::Result;
@@ -38,9 +38,9 @@ const MIN_FILES_PER_DIRECTORY: usize = 10;
 const MIN_NESTED_FILES: usize = 2;
 
 // File size bounds (not scaled)
-const MIN_FILE_SIZE: usize = 4 * 1024;      // 4KB
-const MAX_FILE_SIZE: usize = 512 * 1024;    // 512KB
-const CHANGE_PERCENTAGE: f64 = 0.05;        // 5% of files modified
+const MIN_FILE_SIZE: usize = 4 * 1024; // 4KB
+const MAX_FILE_SIZE: usize = 512 * 1024; // 512KB
+const CHANGE_PERCENTAGE: f64 = 0.05; // 5% of files modified
 
 /// Backup workload phases for progress reporting.
 const BACKUP_PHASES: &[&str] = &[
@@ -75,7 +75,8 @@ impl BackupSyncWorkload {
     /// Create a new backup/sync workload.
     pub fn new(config: WorkloadConfig) -> Self {
         let num_directories = config.scale_count(BASE_NUM_DIRECTORIES, MIN_NUM_DIRECTORIES);
-        let files_per_directory = config.scale_count(BASE_FILES_PER_DIRECTORY, MIN_FILES_PER_DIRECTORY);
+        let files_per_directory =
+            config.scale_count(BASE_FILES_PER_DIRECTORY, MIN_FILES_PER_DIRECTORY);
         let nested_files = config.scale_count(BASE_NESTED_FILES, MIN_NESTED_FILES);
 
         Self {
@@ -87,9 +88,12 @@ impl BackupSyncWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_backup_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_backup_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn source_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -141,7 +145,7 @@ impl BackupSyncWorkload {
     }
 
     /// Write a file with random content.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn write_random_file(&self, rng: &mut ChaCha8Rng, path: &Path, size: usize) -> Result<()> {
         let mut content = vec![0u8; size];
         rng.fill_bytes(&mut content);
@@ -160,7 +164,7 @@ impl BackupSyncWorkload {
         Ok(files)
     }
 
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_files(&self, dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -179,9 +183,15 @@ impl BackupSyncWorkload {
     }
 
     /// Copy a file to the backup directory, preserving relative path.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
-    fn copy_to_backup(&self, source_file: &Path, source_root: &Path, backup_root: &Path) -> Result<()> {
-        let rel_path = source_file.strip_prefix(source_root)
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
+    fn copy_to_backup(
+        &self,
+        source_file: &Path,
+        source_root: &Path,
+        backup_root: &Path,
+    ) -> Result<()> {
+        let rel_path = source_file
+            .strip_prefix(source_root)
             .map_err(|e| anyhow::anyhow!("Path strip error: {e}"))?;
         let dest_path = backup_root.join(rel_path);
 
@@ -194,11 +204,10 @@ impl BackupSyncWorkload {
     }
 
     /// Get file metadata for delta detection.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn get_file_info(&self, path: &Path) -> Result<FileInfo> {
         let metadata = fs::metadata(path)?;
-        let mtime = metadata.modified()
-            .unwrap_or(SystemTime::UNIX_EPOCH);
+        let mtime = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
 
         Ok(FileInfo {
             size: metadata.len(),
@@ -207,11 +216,11 @@ impl BackupSyncWorkload {
     }
 
     /// Compute SHA256 hash of a file.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn compute_hash(&self, path: &Path) -> Result<[u8; 32]> {
         let mut file = File::open(path)?;
         let mut hasher = Sha256::new();
-        #[allow(clippy::large_stack_arrays)]  // 64KB buffer is reasonable for I/O performance
+        #[allow(clippy::large_stack_arrays)] // 64KB buffer is reasonable for I/O performance
         let mut buffer = [0u8; 64 * 1024];
 
         loop {
@@ -231,8 +240,10 @@ impl BackupSyncWorkload {
     /// Modify a portion of files to simulate changes.
     fn apply_changes(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let mut rng = ChaCha8Rng::seed_from_u64(self.seed + 1);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]  // Percentage calculation, bounded by files.len()
-        let num_changes = usize::try_from(((files.len() as f64) * CHANGE_PERCENTAGE) as i64).unwrap_or(0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Percentage calculation, bounded by files.len()
+        let num_changes =
+            usize::try_from(((files.len() as f64) * CHANGE_PERCENTAGE) as i64).unwrap_or(0);
         let num_changes = num_changes.max(1); // At least one change
 
         let mut indices: Vec<usize> = (0..files.len()).collect();
@@ -259,7 +270,8 @@ impl BackupSyncWorkload {
         let mut changed = Vec::new();
 
         for source_file in source_files {
-            let rel_path = source_file.strip_prefix(source_root)
+            let rel_path = source_file
+                .strip_prefix(source_root)
                 .map_err(|e| anyhow::anyhow!("Path strip error: {e}"))?;
             let backup_file = backup_root.join(rel_path);
 
@@ -322,19 +334,20 @@ impl Benchmark for BackupSyncWorkload {
         let total_size = total_files * avg_size;
 
         params.insert("directories".to_string(), self.num_directories.to_string());
-        params.insert("files_per_dir".to_string(), self.files_per_directory.to_string());
+        params.insert(
+            "files_per_dir".to_string(),
+            self.files_per_directory.to_string(),
+        );
         params.insert("nested_files".to_string(), self.nested_files.to_string());
         params.insert("total_files".to_string(), total_files.to_string());
         params.insert(
             "total_size".to_string(),
             format!("~{}MB", total_size / (1024 * 1024)),
         );
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]  // Percentage constant, always positive and small
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Percentage constant, always positive and small
         let change_pct = (CHANGE_PERCENTAGE * 100.0) as u32;
-        params.insert(
-            "change_rate".to_string(),
-            format!("{change_pct}%"),
-        );
+        params.insert("change_rate".to_string(), format!("{change_pct}%"));
         params.insert("scale".to_string(), format!("{:.2}", self.config.scale));
         params
     }

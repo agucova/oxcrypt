@@ -31,12 +31,11 @@ pub mod vault;
 // Re-export commonly used items at the module level
 pub use assertions::{assert_bytes_equal, assert_hash_equal, assert_io_err, assert_io_ok, sha256};
 pub use generators::{
-    all_byte_values, chunk_minus_one, chunk_plus_one, deep_path, long_filename,
-    multi_chunk_content, one_chunk_content, partial_final_chunk, patterned_chunks,
+    CHUNK_SIZE, FILENAME_THRESHOLD, all_byte_values, chunk_minus_one, chunk_plus_one, deep_path,
+    long_filename, multi_chunk_content, one_chunk_content, partial_final_chunk, patterned_chunks,
     problematic_binary, random_bytes, special_filename, unicode_content, unicode_filename,
-    CHUNK_SIZE, FILENAME_THRESHOLD,
 };
-pub use vault::{shared_vault_path, TempVault, SHARED_VAULT_PASSWORD, TEST_PASSWORD};
+pub use vault::{SHARED_VAULT_PASSWORD, TEST_PASSWORD, TempVault, shared_vault_path};
 
 #[cfg(unix)]
 pub use assertions::assert_errno;

@@ -43,7 +43,7 @@ const MIN_NESTED_DEPTH: usize = 2;
 const MIN_SUBDIRS_PER_LEVEL: usize = 2;
 
 // File size (not scaled)
-const FILE_SIZE: usize = 64 * 1024;  // 64KB files
+const FILE_SIZE: usize = 64 * 1024; // 64KB files
 
 /// Cold start workload phases for progress reporting.
 const COLDSTART_PHASES: &[&str] = &[
@@ -94,9 +94,12 @@ impl ColdStartWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_coldstart_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_coldstart_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     /// Create test directory structure.
@@ -134,7 +137,7 @@ impl ColdStartWorkload {
     }
 
     /// Write a file with random content.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn write_random_file(&self, rng: &mut ChaCha8Rng, path: &Path) -> Result<()> {
         let mut content = vec![0u8; FILE_SIZE];
         rng.fill_bytes(&mut content);
@@ -146,7 +149,7 @@ impl ColdStartWorkload {
     }
 
     /// Collect all files in a directory (non-recursive).
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn list_dir(&self, dir: &Path) -> Result<Vec<PathBuf>> {
         let mut entries = Vec::new();
         for entry in fs::read_dir(dir)? {
@@ -163,7 +166,7 @@ impl ColdStartWorkload {
         Ok(files)
     }
 
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_files(&self, dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -188,7 +191,7 @@ impl ColdStartWorkload {
         Ok(dirs)
     }
 
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_dirs(&self, dir: &Path, dirs: &mut Vec<PathBuf>) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -253,7 +256,10 @@ impl Benchmark for ColdStartWorkload {
         params.insert("top_directories".to_string(), self.num_top_dirs.to_string());
         params.insert("files_per_dir".to_string(), self.files_per_dir.to_string());
         params.insert("nesting_depth".to_string(), self.nested_depth.to_string());
-        params.insert("subdirs_per_level".to_string(), self.subdirs_per_level.to_string());
+        params.insert(
+            "subdirs_per_level".to_string(),
+            self.subdirs_per_level.to_string(),
+        );
         params.insert("total_files".to_string(), total_files.to_string());
         params.insert("total_dirs".to_string(), total_dirs.to_string());
         params.insert(
@@ -488,7 +494,7 @@ impl Benchmark for ColdStartWorkload {
 
 impl ColdStartWorkload {
     /// Walk the tree calling callback for each entry.
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_tree<F>(&self, dir: &Path, callback: &mut F) -> Result<()>
     where
         F: FnMut(&Path, bool) -> Result<()>,

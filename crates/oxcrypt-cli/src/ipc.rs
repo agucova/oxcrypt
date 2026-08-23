@@ -6,9 +6,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
 
 use oxcrypt_mount::stats::VaultStatsSnapshot;
 
@@ -210,11 +210,10 @@ impl IpcServer {
                 let mut request_line = String::new();
                 reader.read_line(&mut request_line)?;
 
-                let request: IpcRequest =
-                    serde_json::from_str(&request_line).unwrap_or_else(|e| {
-                        tracing::warn!("Invalid IPC request: {}", e);
-                        IpcRequest::Ping // Default to ping for invalid requests
-                    });
+                let request: IpcRequest = serde_json::from_str(&request_line).unwrap_or_else(|e| {
+                    tracing::warn!("Invalid IPC request: {}", e);
+                    IpcRequest::Ping // Default to ping for invalid requests
+                });
 
                 let response = handler(request);
                 let mut response_json = serde_json::to_string(&response)?;

@@ -20,7 +20,28 @@ fn url_encode_path(path: &str) -> String {
     for c in path.chars() {
         // ASCII printable characters that are allowed in URI paths without encoding
         // (except for '?' and '#' which would start query/fragment)
-        if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '~' | '/' | ':' | '@' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=') {
+        if c.is_ascii_alphanumeric()
+            || matches!(
+                c,
+                '-' | '_'
+                    | '.'
+                    | '~'
+                    | '/'
+                    | ':'
+                    | '@'
+                    | '!'
+                    | '$'
+                    | '&'
+                    | '\''
+                    | '('
+                    | ')'
+                    | '*'
+                    | '+'
+                    | ','
+                    | ';'
+                    | '='
+            )
+        {
             result.push(c);
         } else {
             // Percent-encode the UTF-8 bytes
@@ -145,9 +166,10 @@ impl TestServer {
                 .header("Depth", "0")
                 .send()
                 .await
-                && (resp.status().is_success() || resp.status() == StatusCode::MULTI_STATUS) {
-                    return;
-                }
+                && (resp.status().is_success() || resp.status() == StatusCode::MULTI_STATUS)
+            {
+                return;
+            }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         panic!("Server did not become ready in time");
@@ -202,7 +224,9 @@ impl TestServer {
         let resp = self.put(path, body).await;
         let status = resp.status();
         assert!(
-            status.is_success() || status == StatusCode::CREATED || status == StatusCode::NO_CONTENT,
+            status.is_success()
+                || status == StatusCode::CREATED
+                || status == StatusCode::NO_CONTENT,
             "PUT {} failed with status {}: {}",
             path,
             status,
@@ -288,7 +312,9 @@ impl TestServer {
         let resp = self.copy(from, to, true).await;
         let status = resp.status();
         assert!(
-            status.is_success() || status == StatusCode::CREATED || status == StatusCode::NO_CONTENT,
+            status.is_success()
+                || status == StatusCode::CREATED
+                || status == StatusCode::NO_CONTENT,
             "COPY {} -> {} failed with status {}: {}",
             from,
             to,
@@ -313,7 +339,9 @@ impl TestServer {
         let resp = self.move_(from, to, true).await;
         let status = resp.status();
         assert!(
-            status.is_success() || status == StatusCode::CREATED || status == StatusCode::NO_CONTENT,
+            status.is_success()
+                || status == StatusCode::CREATED
+                || status == StatusCode::NO_CONTENT,
             "MOVE {} -> {} failed with status {}: {}",
             from,
             to,
@@ -365,7 +393,11 @@ impl SharedTestClient {
     }
 
     /// PUT file contents.
-    pub async fn put(&self, path: &str, body: impl Into<reqwest::Body>) -> Result<StatusCode, String> {
+    pub async fn put(
+        &self,
+        path: &str,
+        body: impl Into<reqwest::Body>,
+    ) -> Result<StatusCode, String> {
         self.client
             .put(self.url(path))
             .body(body)
@@ -432,7 +464,11 @@ impl TestServer {
     }
 
     /// GET with Range header and return bytes on success.
-    pub async fn get_range_bytes(&self, path: &str, range: &str) -> Result<Bytes, (StatusCode, String)> {
+    pub async fn get_range_bytes(
+        &self,
+        path: &str,
+        range: &str,
+    ) -> Result<Bytes, (StatusCode, String)> {
         let resp = self.get_range(path, range).await;
         let status = resp.status();
         if status == StatusCode::PARTIAL_CONTENT || status.is_success() {
@@ -454,7 +490,12 @@ impl TestServer {
     }
 
     /// PUT with If-Match header for conditional update.
-    pub async fn put_if_match(&self, path: &str, body: impl Into<reqwest::Body>, etag: &str) -> Response {
+    pub async fn put_if_match(
+        &self,
+        path: &str,
+        body: impl Into<reqwest::Body>,
+        etag: &str,
+    ) -> Response {
         self.client
             .put(self.url(path))
             .header("If-Match", etag)

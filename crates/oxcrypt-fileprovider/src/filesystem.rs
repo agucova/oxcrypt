@@ -4,19 +4,19 @@
 //! all filesystem operations for the File Provider extension.
 
 use crate::item::{
-    decode_identifier, encode_identifier, filename_from_path, parent_identifier, ItemType,
-    ROOT_ITEM_IDENTIFIER, TRASH_IDENTIFIER, WORKING_SET_IDENTIFIER,
+    ItemType, ROOT_ITEM_IDENTIFIER, TRASH_IDENTIFIER, WORKING_SET_IDENTIFIER, decode_identifier,
+    encode_identifier, filename_from_path, parent_identifier,
 };
 use oxcrypt_core::error::{VaultOperationError, VaultWriteError};
 use oxcrypt_core::fs::encrypted_to_plaintext_size_or_zero;
+use oxcrypt_core::vault::VaultOperationsAsync;
 use oxcrypt_core::vault::config::VaultError;
 use oxcrypt_core::vault::operations::DirEntry;
 use oxcrypt_core::vault::path::VaultPath;
-use oxcrypt_core::vault::VaultOperationsAsync;
 use oxcrypt_mount::moka_cache::SyncTtlCache;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, trace};
@@ -219,13 +219,7 @@ pub struct FileProviderItem {
 
 impl FileProviderItem {
     /// Create a new item.
-    pub fn new(
-        vault_path: &str,
-        item_type: ItemType,
-        size: u64,
-        mtime: f64,
-        ctime: f64,
-    ) -> Self {
+    pub fn new(vault_path: &str, item_type: ItemType, size: u64, mtime: f64, ctime: f64) -> Self {
         Self {
             identifier: encode_identifier(vault_path),
             parent_id: parent_identifier(vault_path),
@@ -469,7 +463,7 @@ impl FpResultEnumeration {
 
     /// Check if there are more items to enumerate.
     pub fn result_enum_has_more(&self) -> bool {
-        self.result.as_ref().ok().is_some_and(|r| r.has_more)
+        self.result.as_ref().is_ok_and(|r| r.has_more)
     }
 
     /// Get the next page number (0 if no more).
@@ -686,12 +680,16 @@ impl FileProviderFilesystem {
         };
 
         // Cache the result
-        self.attr_cache.insert(
-            vault_path.clone(),
-            CachedItem { item_type, size },
-        );
+        self.attr_cache
+            .insert(vault_path.clone(), CachedItem { item_type, size });
 
-        Ok(FileProviderItem::new(&vault_path, item_type, size, 0.0, 0.0))
+        Ok(FileProviderItem::new(
+            &vault_path,
+            item_type,
+            size,
+            0.0,
+            0.0,
+        ))
     }
 
     /// Fetch file contents to a destination path.
@@ -706,11 +704,7 @@ impl FileProviderFilesystem {
         }
     }
 
-    fn fetch_contents_internal(
-        &self,
-        identifier: &str,
-        dest_path: &str,
-    ) -> Result<(), FpError> {
+    fn fetch_contents_internal(&self, identifier: &str, dest_path: &str) -> Result<(), FpError> {
         // Decode identifier to vault path
         let vault_path = decode_identifier(identifier)?;
         let vpath = VaultPath::new(&vault_path);
@@ -751,10 +745,7 @@ impl FileProviderFilesystem {
         item_type: u8,
         contents: Option<String>,
     ) -> FpResultItem {
-        debug!(
-            "create_item: {} / {} (type={})",
-            parent, name, item_type
-        );
+        debug!("create_item: {} / {} (type={})", parent, name, item_type);
         FpResultItem {
             result: self.create_item_internal(&parent, &name, item_type, contents.as_deref()),
         }
@@ -1034,7 +1025,13 @@ impl FileProviderFilesystem {
             0
         };
 
-        Ok(FileProviderItem::new(&final_path, item_type, size, 0.0, 0.0))
+        Ok(FileProviderItem::new(
+            &final_path,
+            item_type,
+            size,
+            0.0,
+            0.0,
+        ))
     }
 
     /// Delete an item.
@@ -1096,9 +1093,10 @@ impl FileProviderFilesystem {
         // Invalidate parent cache
         let parent_path = parent_identifier(&vault_path);
         if parent_path != ROOT_ITEM_IDENTIFIER
-            && let Ok(parent_decoded) = decode_identifier(&parent_path) {
-                self.attr_cache.invalidate(&parent_decoded);
-            }
+            && let Ok(parent_decoded) = decode_identifier(&parent_path)
+        {
+            self.attr_cache.invalidate(&parent_decoded);
+        }
 
         Ok(())
     }
@@ -1165,12 +1163,8 @@ impl FileProviderFilesystem {
                                 encrypted_to_plaintext_size_or_zero(info.encrypted_size);
                             (info.name.clone(), ItemType::File, plaintext_size)
                         }
-                        DirEntry::Directory(info) => {
-                            (info.name.clone(), ItemType::Directory, 0)
-                        }
-                        DirEntry::Symlink(info) => {
-                            (info.name.clone(), ItemType::Symlink, 0)
-                        }
+                        DirEntry::Directory(info) => (info.name.clone(), ItemType::Directory, 0),
+                        DirEntry::Symlink(info) => (info.name.clone(), ItemType::Symlink, 0),
                     };
 
                     // Compute full path for this entry
@@ -1181,10 +1175,8 @@ impl FileProviderFilesystem {
                     };
 
                     // Cache the entry
-                    self.attr_cache.insert(
-                        entry_path.clone(),
-                        CachedItem { item_type, size },
-                    );
+                    self.attr_cache
+                        .insert(entry_path.clone(), CachedItem { item_type, size });
 
                     FileProviderItem::new(&entry_path, item_type, size, 0.0, 0.0)
                 })
@@ -1289,9 +1281,7 @@ pub fn fp_fs_new(vault_path: &str, password: &str) -> FpResultFs {
         Err(e) => {
             error!("Failed to create runtime: {}", e);
             return FpResultFs {
-                result: Err(FpError::IoError(format!(
-                    "Failed to create runtime: {e}"
-                ))),
+                result: Err(FpError::IoError(format!("Failed to create runtime: {e}"))),
             };
         }
     };
@@ -1328,7 +1318,10 @@ mod tests {
     #[test]
     fn test_fp_error_codes() {
         assert_eq!(FpError::NotFound("x".into()).error_code(), libc::ENOENT);
-        assert_eq!(FpError::AlreadyExists("x".into()).error_code(), libc::EEXIST);
+        assert_eq!(
+            FpError::AlreadyExists("x".into()).error_code(),
+            libc::EEXIST
+        );
         assert_eq!(FpError::NotEmpty("x".into()).error_code(), libc::ENOTEMPTY);
     }
 

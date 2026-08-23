@@ -17,7 +17,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::assets::{AssetDownloader, manifest};
-use crate::bench::workloads::{copy_file_contents, WorkloadConfig};
+use crate::bench::workloads::{WorkloadConfig, copy_file_contents};
 use crate::bench::{Benchmark, PhaseProgress, PhaseProgressCallback};
 use crate::config::OperationType;
 use anyhow::{Context, Result};
@@ -47,14 +47,14 @@ const MIN_SLIDESHOW_COUNT: usize = 5;
 const MIN_EXPORT_COUNT: usize = 2;
 
 // Photo sizes (not scaled - individual photo sizes should remain realistic)
-const SMALL_PHOTO_SIZE: usize = 2 * 1024 * 1024;    // 2MB (typical JPEG)
-const MEDIUM_PHOTO_SIZE: usize = 8 * 1024 * 1024;   // 8MB (high-res JPEG)
-const LARGE_PHOTO_SIZE: usize = 25 * 1024 * 1024;   // 25MB (RAW simulation)
+const SMALL_PHOTO_SIZE: usize = 2 * 1024 * 1024; // 2MB (typical JPEG)
+const MEDIUM_PHOTO_SIZE: usize = 8 * 1024 * 1024; // 8MB (high-res JPEG)
+const LARGE_PHOTO_SIZE: usize = 25 * 1024 * 1024; // 25MB (RAW simulation)
 
 // Fixed technical parameters (not scaled)
-const EXIF_REGION_SIZE: usize = 64 * 1024;  // First 64KB contains EXIF
-const METADATA_READ_SIZE: usize = 256;       // Small EXIF tag read
-const SLIDESHOW_PAUSE_MS: u64 = 100;         // Pause between slides
+const EXIF_REGION_SIZE: usize = 64 * 1024; // First 64KB contains EXIF
+const METADATA_READ_SIZE: usize = 256; // Small EXIF tag read
+const SLIDESHOW_PAUSE_MS: u64 = 100; // Pause between slides
 
 /// Photo workload phases for progress reporting.
 const PHOTO_PHASES: &[&str] = &[
@@ -114,9 +114,12 @@ impl PhotoLibraryWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_photo_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_photo_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn photos_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -128,7 +131,7 @@ impl PhotoLibraryWorkload {
     }
 
     /// Download real photo assets and return list of paths.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn download_real_assets(&self) -> Result<Vec<PathBuf>> {
         let downloader = AssetDownloader::new()?;
 
@@ -136,8 +139,7 @@ impl PhotoLibraryWorkload {
         match downloader.ensure(&manifest::PHOTO_KODAK) {
             Ok(archive_path) => {
                 // Extract the archive to get individual images
-                let cache_dir = archive_path.parent()
-                    .context("Invalid archive path")?;
+                let cache_dir = archive_path.parent().context("Invalid archive path")?;
                 let extract_dir = cache_dir.join("kodak-extracted");
 
                 if !extract_dir.exists() {
@@ -183,20 +185,20 @@ impl PhotoLibraryWorkload {
     }
 
     /// Generate synthetic photo content with JPEG-like headers.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn generate_synthetic_photo(&self, rng: &mut ChaCha8Rng, size: usize) -> Vec<u8> {
         let mut content = Vec::with_capacity(size);
 
         // JPEG-like magic bytes and fake EXIF header
         // Real JPEG: FF D8 FF E1 <len> "Exif\0\0" + TIFF header
         content.extend_from_slice(&[
-            0xFF, 0xD8, 0xFF, 0xE1,  // JPEG SOI + APP1 marker
-            0x00, 0x60,              // APP1 length (96 bytes for fake EXIF)
-            b'E', b'x', b'i', b'f', 0x00, 0x00,  // "Exif\0\0"
+            0xFF, 0xD8, 0xFF, 0xE1, // JPEG SOI + APP1 marker
+            0x00, 0x60, // APP1 length (96 bytes for fake EXIF)
+            b'E', b'x', b'i', b'f', 0x00, 0x00, // "Exif\0\0"
             // Fake TIFF header (big-endian)
-            0x4D, 0x4D,  // "MM" (big-endian)
-            0x00, 0x2A,  // TIFF magic
-            0x00, 0x00, 0x00, 0x08,  // Offset to first IFD
+            0x4D, 0x4D, // "MM" (big-endian)
+            0x00, 0x2A, // TIFF magic
+            0x00, 0x00, 0x00, 0x08, // Offset to first IFD
         ]);
 
         // Fill rest of EXIF region with structured-looking data
@@ -204,8 +206,8 @@ impl PhotoLibraryWorkload {
             // Fake EXIF tags (tag, type, count, value)
             let tag: u16 = rng.random_range(0x0100..0x9999);
             content.extend_from_slice(&tag.to_be_bytes());
-            content.extend_from_slice(&[0x00, 0x02]);  // ASCII type
-            content.extend_from_slice(&[0x00, 0x00, 0x00, 0x10]);  // count
+            content.extend_from_slice(&[0x00, 0x02]); // ASCII type
+            content.extend_from_slice(&[0x00, 0x00, 0x00, 0x10]); // count
             // Random value bytes
             let mut val = [0u8; 4];
             rng.fill_bytes(&mut val);
@@ -271,15 +273,25 @@ impl Benchmark for PhotoLibraryWorkload {
             params.insert("asset_type".to_string(), "real".to_string());
             params.insert("source".to_string(), "Kodak True Color".to_string());
         } else {
-            let total_photos = self.num_small_photos + self.num_medium_photos + self.num_large_photos;
+            let total_photos =
+                self.num_small_photos + self.num_medium_photos + self.num_large_photos;
             let total_size = self.num_small_photos * SMALL_PHOTO_SIZE
                 + self.num_medium_photos * MEDIUM_PHOTO_SIZE
                 + self.num_large_photos * LARGE_PHOTO_SIZE;
 
             params.insert("asset_type".to_string(), "synthetic".to_string());
-            params.insert("small_photos".to_string(), self.num_small_photos.to_string());
-            params.insert("medium_photos".to_string(), self.num_medium_photos.to_string());
-            params.insert("large_photos".to_string(), self.num_large_photos.to_string());
+            params.insert(
+                "small_photos".to_string(),
+                self.num_small_photos.to_string(),
+            );
+            params.insert(
+                "medium_photos".to_string(),
+                self.num_medium_photos.to_string(),
+            );
+            params.insert(
+                "large_photos".to_string(),
+                self.num_large_photos.to_string(),
+            );
             params.insert("photo_count".to_string(), total_photos.to_string());
             params.insert(
                 "total_size".to_string(),
@@ -287,8 +299,14 @@ impl Benchmark for PhotoLibraryWorkload {
             );
         }
 
-        params.insert("full_load_sample".to_string(), self.full_load_sample.to_string());
-        params.insert("slideshow_count".to_string(), self.slideshow_count.to_string());
+        params.insert(
+            "full_load_sample".to_string(),
+            self.full_load_sample.to_string(),
+        );
+        params.insert(
+            "slideshow_count".to_string(),
+            self.slideshow_count.to_string(),
+        );
         params.insert("export_count".to_string(), self.export_count.to_string());
         params.insert(
             "exif_region".to_string(),
@@ -311,7 +329,10 @@ impl Benchmark for PhotoLibraryWorkload {
                 Ok(asset_paths) => {
                     tracing::info!("Using {} real photo assets", asset_paths.len());
                     for (i, src_path) in asset_paths.iter().enumerate() {
-                        let filename = src_path.file_name().map_or_else(|| format!("photo_{i:04}.jpg"), |n| n.to_string_lossy().to_string());
+                        let filename = src_path.file_name().map_or_else(
+                            || format!("photo_{i:04}.jpg"),
+                            |n| n.to_string_lossy().to_string(),
+                        );
                         let dest_path = photos_dir.join(&filename);
                         copy_file_contents(src_path, &dest_path)
                             .with_context(|| format!("Failed to copy {}", src_path.display()))?;
@@ -319,7 +340,10 @@ impl Benchmark for PhotoLibraryWorkload {
                     return Ok(());
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to get real assets, falling back to synthetic: {}", e);
+                    tracing::warn!(
+                        "Failed to get real assets, falling back to synthetic: {}",
+                        e
+                    );
                 }
             }
         }
@@ -452,7 +476,7 @@ impl Benchmark for PhotoLibraryWorkload {
         Ok(start.elapsed())
     }
 
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn cleanup(&self, mount_point: &Path, iteration: usize) -> Result<()> {
         let workload_dir = self.workload_dir(mount_point, iteration);
         if workload_dir.exists() {

@@ -90,10 +90,7 @@ pub fn execute(vault_ops: &VaultOperations, args: &Args) -> Result<()> {
 
         let target_path = if dest_is_dir {
             // Append source filename to destination directory
-            let file_name = source_path
-                .rsplit('/')
-                .next()
-                .unwrap_or(&source_path);
+            let file_name = source_path.rsplit('/').next().unwrap_or(&source_path);
             format!("{}/{}", dest.trim_end_matches('/'), file_name)
         } else {
             dest.clone()
@@ -130,7 +127,11 @@ pub fn execute(vault_ops: &VaultOperations, args: &Args) -> Result<()> {
             "Copied {} file(s), {} director{}, {} symlink(s)",
             stats.files_copied,
             stats.directories_created,
-            if stats.directories_created == 1 { "y" } else { "ies" },
+            if stats.directories_created == 1 {
+                "y"
+            } else {
+                "ies"
+            },
             stats.symlinks_copied
         );
     }
@@ -157,9 +158,11 @@ fn copy_file(
 
     // Ensure parent directory exists
     if let Some(parent) = dest.rsplit_once('/').map(|(p, _)| p)
-        && !parent.is_empty() && vault_ops.entry_type(parent).is_none() {
-            ensure_directory_exists(vault_ops, parent)?;
-        }
+        && !parent.is_empty()
+        && vault_ops.entry_type(parent).is_none()
+    {
+        ensure_directory_exists(vault_ops, parent)?;
+    }
 
     // Write to destination
     vault_ops
@@ -277,9 +280,11 @@ fn copy_symlink(
 
     // Ensure parent directory exists
     if let Some(parent) = dest.rsplit_once('/').map(|(p, _)| p)
-        && !parent.is_empty() && vault_ops.entry_type(parent).is_none() {
-            ensure_directory_exists(vault_ops, parent)?;
-        }
+        && !parent.is_empty()
+        && vault_ops.entry_type(parent).is_none()
+    {
+        ensure_directory_exists(vault_ops, parent)?;
+    }
 
     // Create symlink at destination
     vault_ops

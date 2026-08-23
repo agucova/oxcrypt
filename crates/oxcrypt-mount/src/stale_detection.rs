@@ -14,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::mount_markers::{find_our_mounts, is_our_mount, SystemMount};
+use crate::mount_markers::{SystemMount, find_our_mounts, is_our_mount};
 use crate::mount_utils::normalize_mount_path;
 
 /// Classification of a mount's status for cleanup decisions.
@@ -166,7 +166,7 @@ pub fn find_orphaned_mounts(tracked_mountpoints: &[&Path]) -> anyhow::Result<Vec
 /// This function leaks threads when the canonicalize call blocks on a ghost mount.
 /// The spawned thread enters kernel D-state and cannot be killed.
 ///
-/// **Prefer [`normalize_mount_path`](crate::normalize_mount_path)** for mount path
+/// **Prefer [`normalize_mount_path`]** for mount path
 /// comparison, which handles known symlinks without touching the filesystem.
 ///
 /// # Arguments

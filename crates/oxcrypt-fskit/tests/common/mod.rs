@@ -10,9 +10,14 @@ pub use harness::TestFilesystem;
 
 // Re-export commonly used testing utilities from mount-common
 pub use oxcrypt_mount::testing::{
-    // Generators for chunk-aware test content
-    chunk_minus_one, chunk_plus_one, multi_chunk_content, one_chunk_content, random_bytes,
     CHUNK_SIZE,
     // Assertions
-    assert_bytes_equal, sha256,
+    assert_bytes_equal,
+    // Generators for chunk-aware test content
+    chunk_minus_one,
+    chunk_plus_one,
+    multi_chunk_content,
+    one_chunk_content,
+    random_bytes,
+    sha256,
 };

@@ -126,9 +126,9 @@ impl MountBackend for FskitBackend {
             FskitError::InvalidVault(path) => {
                 MountError::FilesystemCreation(format!("Invalid vault: {}", path.display()))
             }
-            FskitError::AuthFailed => {
-                MountError::FilesystemCreation("Authentication failed (wrong password?)".to_string())
-            }
+            FskitError::AuthFailed => MountError::FilesystemCreation(
+                "Authentication failed (wrong password?)".to_string(),
+            ),
             FskitError::MountFailed(msg) => MountError::Mount(std::io::Error::other(msg)),
             e => MountError::Mount(std::io::Error::other(e.to_string())),
         })?;
@@ -192,10 +192,7 @@ impl Drop for FskitMountHandle {
 fn check_macos_version() -> bool {
     use std::process::Command;
 
-    let output = Command::new("sw_vers")
-        .arg("-productVersion")
-        .output()
-        .ok();
+    let output = Command::new("sw_vers").arg("-productVersion").output().ok();
 
     let Some(output) = output else {
         return false;

@@ -1,6 +1,6 @@
 //! Custom assertions for NFS integration tests.
 
-use crate::common::{sha256, TestMount};
+use crate::common::{TestMount, sha256};
 use std::io::ErrorKind;
 
 /// Assert that a file contains the expected content.
@@ -9,7 +9,8 @@ pub fn assert_file_content(mount: &TestMount, path: &str, expected: &[u8]) {
         .read(path)
         .unwrap_or_else(|e| panic!("Failed to read {path}: {e}"));
     assert_eq!(
-        actual, expected,
+        actual,
+        expected,
         "Content mismatch for {}. Expected {} bytes, got {} bytes",
         path,
         expected.len(),
@@ -23,10 +24,7 @@ pub fn assert_file_hash(mount: &TestMount, path: &str, expected_hash: &[u8]) {
         .read(path)
         .unwrap_or_else(|e| panic!("Failed to read {path}: {e}"));
     let actual_hash = sha256(&content);
-    assert_eq!(
-        actual_hash, expected_hash,
-        "Hash mismatch for {path}"
-    );
+    assert_eq!(actual_hash, expected_hash, "Hash mismatch for {path}");
 }
 
 /// Assert that a path does not exist.
@@ -44,7 +42,8 @@ pub fn assert_dir_entries(mount: &TestMount, path: &str, expected: &[&str]) {
         .list_dir(path)
         .unwrap_or_else(|e| panic!("Failed to list {path}: {e}"));
 
-    let expected_set: std::collections::HashSet<_> = expected.iter().map(ToString::to_string).collect();
+    let expected_set: std::collections::HashSet<_> =
+        expected.iter().map(ToString::to_string).collect();
     let actual_set: std::collections::HashSet<_> = actual.iter().cloned().collect();
 
     // Filter out . and ..
@@ -75,10 +74,7 @@ pub fn assert_is_file(mount: &TestMount, path: &str) {
     let meta = mount
         .metadata(path)
         .unwrap_or_else(|e| panic!("Failed to get metadata for {path}: {e}"));
-    assert!(
-        meta.is_file(),
-        "Expected {path} to be a file, but it's not"
-    );
+    assert!(meta.is_file(), "Expected {path} to be a file, but it's not");
 }
 
 /// Assert that a file has the expected size.

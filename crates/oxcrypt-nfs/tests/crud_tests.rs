@@ -15,8 +15,8 @@
 mod common;
 
 use common::{
-    assert_file_content, assert_file_hash, assert_not_found, chunk_minus_one, chunk_plus_one,
-    multi_chunk_content, one_chunk_content, random_bytes, sha256, TestMount, CHUNK_SIZE,
+    CHUNK_SIZE, TestMount, assert_file_content, assert_file_hash, assert_not_found,
+    chunk_minus_one, chunk_plus_one, multi_chunk_content, one_chunk_content, random_bytes, sha256,
 };
 use std::io::ErrorKind;
 
@@ -45,7 +45,9 @@ fn test_put_overwrite() {
     assert_file_content(&mount, "/file.txt", b"version1");
 
     // Overwrite with different content
-    mount.write("/file.txt", b"version2").expect("overwrite failed");
+    mount
+        .write("/file.txt", b"version2")
+        .expect("overwrite failed");
 
     // Must see new content (cache invalidation)
     assert_file_content(&mount, "/file.txt", b"version2");
@@ -84,7 +86,9 @@ fn test_put_exactly_one_chunk() {
     assert_eq!(content.len(), CHUNK_SIZE);
 
     let expected_hash = sha256(&content);
-    mount.write("/one_chunk.bin", &content).expect("write failed");
+    mount
+        .write("/one_chunk.bin", &content)
+        .expect("write failed");
 
     assert_file_hash(&mount, "/one_chunk.bin", &expected_hash);
 }
@@ -98,7 +102,9 @@ fn test_put_chunk_boundary_minus_one() {
     assert_eq!(content.len(), CHUNK_SIZE - 1);
 
     let expected_hash = sha256(&content);
-    mount.write("/chunk_minus.bin", &content).expect("write failed");
+    mount
+        .write("/chunk_minus.bin", &content)
+        .expect("write failed");
 
     let retrieved = mount.read("/chunk_minus.bin").expect("read failed");
     assert_eq!(retrieved.len(), CHUNK_SIZE - 1);
@@ -114,7 +120,9 @@ fn test_put_chunk_boundary_plus_one() {
     assert_eq!(content.len(), CHUNK_SIZE + 1);
 
     let expected_hash = sha256(&content);
-    mount.write("/chunk_plus.bin", &content).expect("write failed");
+    mount
+        .write("/chunk_plus.bin", &content)
+        .expect("write failed");
 
     let retrieved = mount.read("/chunk_plus.bin").expect("read failed");
     assert_eq!(retrieved.len(), CHUNK_SIZE + 1);
@@ -147,7 +155,9 @@ fn test_put_exactly_two_chunks() {
     assert_eq!(content.len(), 2 * CHUNK_SIZE);
 
     let expected_hash = sha256(&content);
-    mount.write("/two_chunks.bin", &content).expect("write failed");
+    mount
+        .write("/two_chunks.bin", &content)
+        .expect("write failed");
 
     let retrieved = mount.read("/two_chunks.bin").expect("read failed");
     assert_eq!(sha256(&retrieved), expected_hash);
@@ -172,7 +182,9 @@ fn test_get_after_delete() {
     let mount = TestMount::with_temp_vault().expect("Failed to create test mount");
     skip_if_not_mounted!(mount);
 
-    mount.write("/temp.txt", b"temporary").expect("write failed");
+    mount
+        .write("/temp.txt", b"temporary")
+        .expect("write failed");
     assert_file_content(&mount, "/temp.txt", b"temporary");
 
     mount.delete("/temp.txt").expect("delete failed");
@@ -189,7 +201,9 @@ fn test_delete_file() {
     let mount = TestMount::with_temp_vault().expect("Failed to create test mount");
     skip_if_not_mounted!(mount);
 
-    mount.write("/to_delete.txt", b"delete me").expect("write failed");
+    mount
+        .write("/to_delete.txt", b"delete me")
+        .expect("write failed");
     assert_file_content(&mount, "/to_delete.txt", b"delete me");
 
     mount.delete("/to_delete.txt").expect("delete failed");
@@ -251,7 +265,9 @@ fn test_mkdir_then_put_file_inside() {
     skip_if_not_mounted!(mount);
 
     mount.mkdir("/mydir").expect("mkdir failed");
-    mount.write("/mydir/file.txt", b"inside dir").expect("write failed");
+    mount
+        .write("/mydir/file.txt", b"inside dir")
+        .expect("write failed");
 
     assert_file_content(&mount, "/mydir/file.txt", b"inside dir");
 }
@@ -277,7 +293,9 @@ fn test_rmdir_nonempty_should_fail() {
     skip_if_not_mounted!(mount);
 
     mount.mkdir("/nonempty").expect("mkdir failed");
-    mount.write("/nonempty/file.txt", b"content").expect("write failed");
+    mount
+        .write("/nonempty/file.txt", b"content")
+        .expect("write failed");
 
     // Deleting non-empty directory should fail
     let result = mount.rmdir("/nonempty");
@@ -297,7 +315,9 @@ fn test_put_get_in_subdirectory() {
     skip_if_not_mounted!(mount);
 
     mount.mkdir("/subdir").expect("mkdir failed");
-    mount.write("/subdir/nested.txt", b"nested content").expect("write failed");
+    mount
+        .write("/subdir/nested.txt", b"nested content")
+        .expect("write failed");
 
     assert_file_content(&mount, "/subdir/nested.txt", b"nested content");
 }
@@ -312,7 +332,9 @@ fn test_deep_directory_structure() {
     mount.mkdir("/a/b").expect("mkdir /a/b failed");
     mount.mkdir("/a/b/c").expect("mkdir /a/b/c failed");
 
-    mount.write("/a/b/c/deep.txt", b"deep file").expect("write failed");
+    mount
+        .write("/a/b/c/deep.txt", b"deep file")
+        .expect("write failed");
 
     assert_file_content(&mount, "/a/b/c/deep.txt", b"deep file");
 }
@@ -327,9 +349,15 @@ fn test_multiple_files_independence() {
     skip_if_not_mounted!(mount);
 
     // Create multiple files
-    mount.write("/file1.txt", b"content 1").expect("write 1 failed");
-    mount.write("/file2.txt", b"content 2").expect("write 2 failed");
-    mount.write("/file3.txt", b"content 3").expect("write 3 failed");
+    mount
+        .write("/file1.txt", b"content 1")
+        .expect("write 1 failed");
+    mount
+        .write("/file2.txt", b"content 2")
+        .expect("write 2 failed");
+    mount
+        .write("/file3.txt", b"content 3")
+        .expect("write 3 failed");
 
     // Verify all have correct content
     assert_file_content(&mount, "/file1.txt", b"content 1");
@@ -337,7 +365,9 @@ fn test_multiple_files_independence() {
     assert_file_content(&mount, "/file3.txt", b"content 3");
 
     // Modify one
-    mount.write("/file2.txt", b"modified 2").expect("overwrite failed");
+    mount
+        .write("/file2.txt", b"modified 2")
+        .expect("overwrite failed");
 
     // Others should be unchanged
     assert_file_content(&mount, "/file1.txt", b"content 1");
@@ -351,7 +381,9 @@ fn test_overwrite_with_different_size() {
     skip_if_not_mounted!(mount);
 
     // Start with small content
-    mount.write("/resize.bin", b"small").expect("write 1 failed");
+    mount
+        .write("/resize.bin", b"small")
+        .expect("write 1 failed");
     assert_file_content(&mount, "/resize.bin", b"small");
 
     // Overwrite with larger content
@@ -364,6 +396,8 @@ fn test_overwrite_with_different_size() {
     assert_eq!(sha256(&retrieved), hash);
 
     // Overwrite with smaller content again
-    mount.write("/resize.bin", b"small again").expect("write 3 failed");
+    mount
+        .write("/resize.bin", b"small again")
+        .expect("write 3 failed");
     assert_file_content(&mount, "/resize.bin", b"small again");
 }

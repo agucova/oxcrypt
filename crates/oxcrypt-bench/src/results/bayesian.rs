@@ -104,11 +104,7 @@ impl SampleStats {
         }
 
         let mean = samples.iter().sum::<f64>() / n as f64;
-        let variance = samples
-            .iter()
-            .map(|x| (x - mean).powi(2))
-            .sum::<f64>()
-            / (n - 1) as f64; // Bessel's correction
+        let variance = samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64; // Bessel's correction
         let std_err = (variance / n as f64).sqrt();
 
         Self {
@@ -195,8 +191,8 @@ pub fn bayesian_compare_ns(
     // P(A faster) = P(μ_a < μ_b) = P(diff < 0)
     let (prob_a_faster, prob_practically_faster, prob_equivalent) = if diff_std > 1e-10 && df > 0.0
     {
-        let t_dist = StudentsT::new(0.0, 1.0, df)
-            .expect("StudentsT creation should succeed with df > 0");
+        let t_dist =
+            StudentsT::new(0.0, 1.0, df).expect("StudentsT creation should succeed with df > 0");
         let t_stat = diff_mean / diff_std;
         let prob_a_faster = t_dist.cdf(-t_stat);
 
@@ -269,8 +265,8 @@ fn welch_satterthwaite_df(a: &SampleStats, b: &SampleStats) -> f64 {
     let var_b_n = b.variance / b.n as f64;
 
     let numerator = (var_a_n + var_b_n).powi(2);
-    let denominator =
-        var_a_n.powi(2) / (a.n.saturating_sub(1)) as f64 + var_b_n.powi(2) / (b.n.saturating_sub(1)) as f64;
+    let denominator = var_a_n.powi(2) / (a.n.saturating_sub(1)) as f64
+        + var_b_n.powi(2) / (b.n.saturating_sub(1)) as f64;
 
     if denominator < 1e-10 {
         return 1.0;

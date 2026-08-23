@@ -50,9 +50,7 @@ pub fn is_bookmark_error(error: &str) -> bool {
 macro_rules! skip_if_no_fileprovider {
     () => {
         if !$crate::common::harness::fileprovider_available() {
-            eprintln!(
-                "Skipping: File Provider not available (extension not enabled or not macOS)"
-            );
+            eprintln!("Skipping: File Provider not available (extension not enabled or not macOS)");
             return;
         }
     };
@@ -143,9 +141,9 @@ impl TestMount {
         // Create backend and check availability
         let backend = FileProviderBackend::new();
         if !backend.is_available() {
-            return Err(backend.unavailable_reason().unwrap_or_else(|| {
-                "File Provider extension not available".to_string()
-            }));
+            return Err(backend
+                .unavailable_reason()
+                .unwrap_or_else(|| "File Provider extension not available".to_string()));
         }
 
         // Mount the vault
@@ -185,10 +183,7 @@ impl TestMount {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
 
-        Err(format!(
-            "Timed out waiting for mount at {}",
-            path.display()
-        ))
+        Err(format!("Timed out waiting for mount at {}", path.display()))
     }
 
     /// Get the mount point path.

@@ -18,13 +18,37 @@ pub mod write;
 pub mod mounts;
 
 // Mount-related modules require at least one backend feature
-#[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+#[cfg(any(
+    feature = "fuse",
+    feature = "fskit",
+    feature = "webdav",
+    feature = "nfs",
+    feature = "fileprovider"
+))]
 pub mod backends;
-#[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+#[cfg(any(
+    feature = "fuse",
+    feature = "fskit",
+    feature = "webdav",
+    feature = "nfs",
+    feature = "fileprovider"
+))]
 pub mod exec;
-#[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+#[cfg(any(
+    feature = "fuse",
+    feature = "fskit",
+    feature = "webdav",
+    feature = "nfs",
+    feature = "fileprovider"
+))]
 pub mod mount;
-#[cfg(any(feature = "fuse", feature = "fskit", feature = "webdav", feature = "nfs", feature = "fileprovider"))]
+#[cfg(any(
+    feature = "fuse",
+    feature = "fskit",
+    feature = "webdav",
+    feature = "nfs",
+    feature = "fileprovider"
+))]
 pub mod unmount;
 
 /// Normalize a vault path to ensure it starts with `/`.

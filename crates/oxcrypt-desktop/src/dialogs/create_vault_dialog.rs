@@ -119,7 +119,9 @@ pub fn CreateVaultDialog(
                         return;
                     }
                     if name.contains('/') || name.contains('\\') {
-                        validation_error.set(Some("Vault name cannot contain path separators".to_string()));
+                        validation_error.set(Some(
+                            "Vault name cannot contain path separators".to_string(),
+                        ));
                         return;
                     }
                     // Check if vault already exists
@@ -153,7 +155,8 @@ pub fn CreateVaultDialog(
 
                         match result {
                             Ok(Ok(_ops)) => {
-                                creation_state.set(CreationState::Success(vault_path_for_success.clone()));
+                                creation_state
+                                    .set(CreationState::Success(vault_path_for_success.clone()));
                                 on_complete.call(vault_path_for_success);
                             }
                             Ok(Err(e)) => {
@@ -339,9 +342,21 @@ pub fn CreateVaultDialog(
 /// Step indicator showing progress through wizard
 #[component]
 fn StepIndicator(current_step: i32) -> Element {
-    let line1_class = if 1 < current_step { "flex-1 h-0.5 bg-green-500" } else { "flex-1 h-0.5 bg-gray-300 dark:bg-neutral-600" };
-    let line2_class = if 2 < current_step { "flex-1 h-0.5 bg-green-500" } else { "flex-1 h-0.5 bg-gray-300 dark:bg-neutral-600" };
-    let line3_class = if 3 < current_step { "flex-1 h-0.5 bg-green-500" } else { "flex-1 h-0.5 bg-gray-300 dark:bg-neutral-600" };
+    let line1_class = if 1 < current_step {
+        "flex-1 h-0.5 bg-green-500"
+    } else {
+        "flex-1 h-0.5 bg-gray-300 dark:bg-neutral-600"
+    };
+    let line2_class = if 2 < current_step {
+        "flex-1 h-0.5 bg-green-500"
+    } else {
+        "flex-1 h-0.5 bg-gray-300 dark:bg-neutral-600"
+    };
+    let line3_class = if 3 < current_step {
+        "flex-1 h-0.5 bg-green-500"
+    } else {
+        "flex-1 h-0.5 bg-gray-300 dark:bg-neutral-600"
+    };
 
     rsx! {
         div {
@@ -382,10 +397,7 @@ fn StepDot(step: i32, current: i32) -> Element {
 
 /// Step 1: Choose location content
 #[component]
-fn LocationStep(
-    parent_path: Option<PathBuf>,
-    on_browse: EventHandler<()>,
-) -> Element {
+fn LocationStep(parent_path: Option<PathBuf>, on_browse: EventHandler<()>) -> Element {
     rsx! {
         p {
             class: "mb-4 text-sm text-gray-600 dark:text-gray-400",
@@ -532,10 +544,7 @@ fn PasswordStep(
 
 /// Step 4: Creating vault progress content
 #[component]
-fn CreatingStep(
-    state: CreationState,
-    on_retry: EventHandler<()>,
-) -> Element {
+fn CreatingStep(state: CreationState, on_retry: EventHandler<()>) -> Element {
     let is_creating = matches!(state, CreationState::Creating | CreationState::Idle);
     let success_path = match &state {
         CreationState::Success(p) => Some(p.display().to_string()),

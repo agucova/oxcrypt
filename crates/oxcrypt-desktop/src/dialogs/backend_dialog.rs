@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::backend::{mount_manager, BackendInfo, BackendType};
+use crate::backend::{BackendInfo, BackendType, mount_manager};
 
 /// Settings returned from the backend dialog
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -207,9 +207,15 @@ fn BackendOption(
     let is_available = info.available;
 
     let button_class = match (is_selected, is_available) {
-        (true, _) => "flex flex-col gap-1 p-3 px-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 rounded-lg text-left cursor-pointer transition-colors w-full",
-        (false, true) => "flex flex-col gap-1 p-3 px-4 bg-white dark:bg-neutral-800 border-2 border-gray-200 dark:border-neutral-600 rounded-lg text-left cursor-pointer transition-colors w-full hover:border-gray-300 dark:hover:border-neutral-500",
-        (false, false) => "flex flex-col gap-1 p-3 px-4 bg-gray-100 dark:bg-neutral-700 border-2 border-gray-200 dark:border-neutral-600 rounded-lg text-left cursor-not-allowed opacity-60 w-full",
+        (true, _) => {
+            "flex flex-col gap-1 p-3 px-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 rounded-lg text-left cursor-pointer transition-colors w-full"
+        }
+        (false, true) => {
+            "flex flex-col gap-1 p-3 px-4 bg-white dark:bg-neutral-800 border-2 border-gray-200 dark:border-neutral-600 rounded-lg text-left cursor-pointer transition-colors w-full hover:border-gray-300 dark:hover:border-neutral-500"
+        }
+        (false, false) => {
+            "flex flex-col gap-1 p-3 px-4 bg-gray-100 dark:bg-neutral-700 border-2 border-gray-200 dark:border-neutral-600 rounded-lg text-left cursor-not-allowed opacity-60 w-full"
+        }
     };
 
     let radio_class = if is_selected {

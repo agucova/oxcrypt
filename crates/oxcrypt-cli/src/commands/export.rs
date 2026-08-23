@@ -92,12 +92,17 @@ pub fn execute(vault_ops: &VaultOperations, args: &Args) -> Result<()> {
     }
 
     // Determine if destination should be treated as a directory
-    let dest_is_dir = args.dest.is_dir() || args.sources.len() > 1 || args.dest.to_string_lossy().ends_with('/');
+    let dest_is_dir =
+        args.dest.is_dir() || args.sources.len() > 1 || args.dest.to_string_lossy().ends_with('/');
 
     // Create destination directory if it doesn't exist
     if dest_is_dir && !args.dest.exists() {
-        fs::create_dir_all(&args.dest)
-            .with_context(|| format!("Failed to create destination directory: {}", args.dest.display()))?;
+        fs::create_dir_all(&args.dest).with_context(|| {
+            format!(
+                "Failed to create destination directory: {}",
+                args.dest.display()
+            )
+        })?;
     }
 
     // Export each source
@@ -106,10 +111,7 @@ pub fn execute(vault_ops: &VaultOperations, args: &Args) -> Result<()> {
 
         let target_path = if dest_is_dir {
             // Append source filename to destination directory
-            let file_name = source_path
-                .rsplit('/')
-                .next()
-                .unwrap_or(&source_path);
+            let file_name = source_path.rsplit('/').next().unwrap_or(&source_path);
             args.dest.join(file_name)
         } else {
             args.dest.clone()
@@ -147,7 +149,11 @@ pub fn execute(vault_ops: &VaultOperations, args: &Args) -> Result<()> {
         stats.files_exported,
         format_bytes(stats.bytes_exported),
         stats.directories_created,
-        if stats.directories_created == 1 { "y" } else { "ies" },
+        if stats.directories_created == 1 {
+            "y"
+        } else {
+            "ies"
+        },
         stats.files_skipped
     );
 
@@ -177,10 +183,11 @@ fn export_file(
 
     // Ensure parent directory exists
     if let Some(parent) = dest.parent()
-        && !parent.exists() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create parent directory: {}", parent.display()))?;
-        }
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create parent directory: {}", parent.display()))?;
+    }
 
     // Read from vault
     let file_info = vault_ops
@@ -194,7 +201,12 @@ fn export_file(
         .with_context(|| format!("Failed to write to: {}", dest.display()))?;
 
     if args.progress {
-        eprintln!("Exported: {} -> {} ({})", source, dest.display(), format_bytes(size));
+        eprintln!(
+            "Exported: {} -> {} ({})",
+            source,
+            dest.display(),
+            format_bytes(size)
+        );
     }
 
     stats.files_exported += 1;
@@ -322,7 +334,12 @@ fn export_symlink(
     create_symlink(&target, dest)?;
 
     if args.progress {
-        eprintln!("Created symlink: {} -> {} (target: {})", source, dest.display(), target);
+        eprintln!(
+            "Created symlink: {} -> {} (target: {})",
+            source,
+            dest.display(),
+            target
+        );
     }
 
     stats.files_exported += 1;

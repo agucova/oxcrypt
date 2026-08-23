@@ -4,8 +4,8 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use serial_test::file_serial;
 use std::ffi::OsString;
-use std::sync::OnceLock;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tempfile::TempDir;
 
 const TEST_PASSWORD: &str = "test-password-123";
@@ -88,7 +88,9 @@ fn current_config_dir() -> Option<OsString> {
 
 fn config_dir_env() -> impl Iterator<Item = (OsString, OsString)> {
     static KEY: OnceLock<OsString> = OnceLock::new();
-    let key = KEY.get_or_init(|| OsString::from("OXCRYPT_CONFIG_DIR")).clone();
+    let key = KEY
+        .get_or_init(|| OsString::from("OXCRYPT_CONFIG_DIR"))
+        .clone();
     current_config_dir().map(|value| (key, value)).into_iter()
 }
 
@@ -102,7 +104,9 @@ fn test_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Command-line interface for Cryptomator vaults"))
+        .stdout(predicate::str::contains(
+            "Command-line interface for Cryptomator vaults",
+        ))
         .stdout(predicate::str::contains("init"))
         .stdout(predicate::str::contains("ls"))
         .stdout(predicate::str::contains("cat"))
@@ -167,11 +171,7 @@ fn test_init_fails_on_existing_vault() {
     let vault_path = temp_dir.path().join("vault");
 
     // Try to init again at the same location
-    oxcrypt()
-        .arg("init")
-        .arg(&vault_path)
-        .assert()
-        .failure();
+    oxcrypt().arg("init").arg(&vault_path).assert().failure();
 }
 
 // ============================================================================
@@ -197,11 +197,7 @@ fn test_tree_empty_vault() {
     let temp_dir = create_temp_vault();
     let vault_path = temp_dir.path().join("vault");
 
-    oxcrypt()
-        .arg("tree")
-        .arg(&vault_path)
-        .assert()
-        .success();
+    oxcrypt().arg("tree").arg(&vault_path).assert().success();
 }
 
 #[test]
@@ -673,7 +669,7 @@ fn test_mounts_command_empty() {
         .success()
         .stderr(
             predicate::str::contains("No active mounts")
-                .or(predicate::str::contains("0 active mount(s)"))
+                .or(predicate::str::contains("0 active mount(s)")),
         );
 }
 
@@ -698,9 +694,7 @@ fn test_mounts_displays_entries_from_state_file() {
     let _config_dir = ConfigDirGuard::new();
     // Create a mock entry - note: it will be detected as stale since
     // the mountpoint doesn't actually exist, but with --include-stale it shows
-    write_mock_state(&[
-        mock_entry_stale("/home/user/vault1", "/mnt/vault1"),
-    ]);
+    write_mock_state(&[mock_entry_stale("/home/user/vault1", "/mnt/vault1")]);
 
     oxcrypt_no_password()
         .arg("mounts")
@@ -717,9 +711,7 @@ fn test_mounts_displays_entries_from_state_file() {
 #[file_serial]
 fn test_mounts_json_shows_stale_entries() {
     let _config_dir = ConfigDirGuard::new();
-    write_mock_state(&[
-        mock_entry_stale("/home/user/my-vault", "/tmp/my-mount"),
-    ]);
+    write_mock_state(&[mock_entry_stale("/home/user/my-vault", "/tmp/my-mount")]);
 
     oxcrypt_no_password()
         .arg("mounts")
@@ -741,9 +733,7 @@ fn test_mounts_auto_cleanup_removes_stale() {
     let state_path = get_state_file_path();
 
     // Write stale entry
-    write_mock_state(&[
-        mock_entry_stale("/vault", "/mnt"),
-    ]);
+    write_mock_state(&[mock_entry_stale("/vault", "/mnt")]);
 
     // Run mounts WITHOUT --no-cleanup (default behavior)
     oxcrypt_no_password()
@@ -756,7 +746,10 @@ fn test_mounts_auto_cleanup_removes_stale() {
     let contents = std::fs::read_to_string(&state_path).unwrap_or_default();
     let state: serde_json::Value = serde_json::from_str(&contents).unwrap_or(serde_json::json!({}));
     let mounts = state.get("mounts").and_then(|m| m.as_array());
-    assert!(mounts.is_none_or(Vec::is_empty), "Stale entry should be cleaned up");
+    assert!(
+        mounts.is_none_or(Vec::is_empty),
+        "Stale entry should be cleaned up"
+    );
 
     cleanup_state_file();
 }
@@ -768,9 +761,7 @@ fn test_mounts_no_cleanup_preserves_stale() {
     let state_path = get_state_file_path();
 
     // Write stale entry
-    write_mock_state(&[
-        mock_entry_stale("/vault", "/mnt"),
-    ]);
+    write_mock_state(&[mock_entry_stale("/vault", "/mnt")]);
 
     // Run mounts WITH --no-cleanup
     oxcrypt_no_password()
@@ -783,7 +774,11 @@ fn test_mounts_no_cleanup_preserves_stale() {
     let contents = std::fs::read_to_string(&state_path).unwrap();
     let state: serde_json::Value = serde_json::from_str(&contents).unwrap();
     let mounts = state.get("mounts").and_then(|m| m.as_array()).unwrap();
-    assert_eq!(mounts.len(), 1, "Entry should be preserved with --no-cleanup");
+    assert_eq!(
+        mounts.len(),
+        1,
+        "Entry should be preserved with --no-cleanup"
+    );
 
     cleanup_state_file();
 }

@@ -139,9 +139,7 @@ impl BenchmarkPrinter {
                 stats.sample_count
             );
         } else {
-            println!(
-                "  Time (mean ± σ):  {mean} ± {std_dev}    {throughput_info}"
-            );
+            println!("  Time (mean ± σ):  {mean} ± {std_dev}    {throughput_info}");
             println!(
                 "  Range (min … max):  {} … {}    {} runs",
                 min, max, stats.sample_count
@@ -173,9 +171,13 @@ impl BenchmarkPrinter {
         }
 
         // Only print summary if there are multiple implementations for some benchmark
-        let has_comparisons = by_benchmark
-            .values()
-            .any(|v| v.iter().map(|s| s.implementation).collect::<std::collections::HashSet<_>>().len() > 1);
+        let has_comparisons = by_benchmark.values().any(|v| {
+            v.iter()
+                .map(|s| s.implementation)
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                > 1
+        });
         if !has_comparisons {
             return;
         }
@@ -195,7 +197,8 @@ impl BenchmarkPrinter {
                 .collect();
 
             // Check we have multiple distinct implementations
-            let impl_set: std::collections::HashSet<_> = valid_stats.iter().map(|s| s.implementation).collect();
+            let impl_set: std::collections::HashSet<_> =
+                valid_stats.iter().map(|s| s.implementation).collect();
             if impl_set.len() < 2 {
                 continue;
             }
@@ -207,7 +210,11 @@ impl BenchmarkPrinter {
                 .min_by(|a, b| a.mean.cmp(&b.mean))
                 .expect("valid_stats is non-empty (checked above)");
 
-            let fastest_name = format!("{} / {}", fastest.implementation.short_name(), benchmark_name);
+            let fastest_name = format!(
+                "{} / {}",
+                fastest.implementation.short_name(),
+                benchmark_name
+            );
 
             if self.color {
                 println!("  {} ran", fastest_name.green().bold());
@@ -228,18 +235,18 @@ impl BenchmarkPrinter {
             let mut comparisons: Vec<_> = other_impls
                 .into_iter()
                 .filter_map(|other| {
-                    let speedup = other.mean.as_nanos() as f64
-                        / fastest.mean.as_nanos() as f64;
+                    let speedup = other.mean.as_nanos() as f64 / fastest.mean.as_nanos() as f64;
                     // Estimate uncertainty using Standard Error of the Mean (SEM = σ/√n)
                     // This gives tighter bounds that represent uncertainty in the mean,
                     // not the spread of individual samples.
-                    let sem_fastest = fastest.std_dev.as_nanos() as f64
-                        / (fastest.sample_count as f64).sqrt();
-                    let sem_other = other.std_dev.as_nanos() as f64
-                        / (other.sample_count as f64).sqrt();
+                    let sem_fastest =
+                        fastest.std_dev.as_nanos() as f64 / (fastest.sample_count as f64).sqrt();
+                    let sem_other =
+                        other.std_dev.as_nanos() as f64 / (other.sample_count as f64).sqrt();
                     let rel_err_fastest = sem_fastest / fastest.mean.as_nanos() as f64;
                     let rel_err_other = sem_other / other.mean.as_nanos() as f64;
-                    let uncertainty = speedup * (rel_err_fastest.powi(2) + rel_err_other.powi(2)).sqrt();
+                    let uncertainty =
+                        speedup * (rel_err_fastest.powi(2) + rel_err_other.powi(2)).sqrt();
 
                     // Skip comparisons with invalid values
                     if speedup.is_finite() && uncertainty.is_finite() {
@@ -254,7 +261,8 @@ impl BenchmarkPrinter {
             comparisons.sort_by(|a, b| a.1.total_cmp(&b.1));
 
             for (other, speedup, uncertainty) in comparisons {
-                let other_name = format!("{} / {}", other.implementation.short_name(), benchmark_name);
+                let other_name =
+                    format!("{} / {}", other.implementation.short_name(), benchmark_name);
                 let speedup_str = format_speedup(speedup, uncertainty);
 
                 if self.color {
@@ -314,7 +322,11 @@ impl BenchmarkPrinter {
                 .min_by(|a, b| a.latency.mean.cmp(&b.latency.mean))
                 .expect("stats is non-empty (checked above)");
 
-            let fastest_name = format!("{} / {}", fastest.implementation.short_name(), benchmark_name);
+            let fastest_name = format!(
+                "{} / {}",
+                fastest.implementation.short_name(),
+                benchmark_name
+            );
 
             if self.color {
                 println!("  {} ran", fastest_name.green().bold());
@@ -323,20 +335,30 @@ impl BenchmarkPrinter {
             }
 
             // Find relevant Bayesian comparisons for this benchmark
-            for other in stats.iter().filter(|s| s.implementation != fastest.implementation) {
-                let other_name = format!("{} / {}", other.implementation.short_name(), benchmark_name);
+            for other in stats
+                .iter()
+                .filter(|s| s.implementation != fastest.implementation)
+            {
+                let other_name =
+                    format!("{} / {}", other.implementation.short_name(), benchmark_name);
 
                 // Try to find the Bayesian comparison for this pair
                 let comparison = comparisons.iter().find(|c| {
-                    (c.impl_a == fastest.implementation.name() && c.impl_b == other.implementation.name())
+                    (c.impl_a == fastest.implementation.name()
+                        && c.impl_b == other.implementation.name())
                         || (c.impl_b == fastest.implementation.name()
                             && c.impl_a == other.implementation.name())
                 });
 
                 if let Some(comp) = comparison {
                     // Use Bayesian credible interval
-                    let (speedup, ci_low, ci_high) = if comp.impl_a == fastest.implementation.name() {
-                        (comp.speedup_ratio, comp.speedup_ci_low, comp.speedup_ci_high)
+                    let (speedup, ci_low, ci_high) = if comp.impl_a == fastest.implementation.name()
+                    {
+                        (
+                            comp.speedup_ratio,
+                            comp.speedup_ci_low,
+                            comp.speedup_ci_high,
+                        )
                     } else {
                         // Invert the ratio
                         (
@@ -366,9 +388,7 @@ impl BenchmarkPrinter {
                             significance.dimmed()
                         );
                     } else {
-                        println!(
-                            "    {speedup_str} times faster than {other_name}{significance}"
-                        );
+                        println!("    {speedup_str} times faster than {other_name}{significance}");
                     }
                 } else {
                     // Fallback to simple calculation

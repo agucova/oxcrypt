@@ -32,9 +32,8 @@ pub use tree::DirectoryTreeWorkload;
 pub use working_set::WorkingSetWorkload;
 
 use crate::bench::{
-    DirectoryListingBenchmark, FileCreationBenchmark, FileDeletionBenchmark,
-    MetadataBenchmark, RandomReadBenchmark, RandomWriteBenchmark,
-    SequentialReadBenchmark, SequentialWriteBenchmark,
+    DirectoryListingBenchmark, FileCreationBenchmark, FileDeletionBenchmark, MetadataBenchmark,
+    RandomReadBenchmark, RandomWriteBenchmark, SequentialReadBenchmark, SequentialWriteBenchmark,
 };
 use crate::config::FileSize;
 use std::fs::File;
@@ -70,8 +69,7 @@ impl WorkloadConfig {
         // Generate unique session ID from current timestamp
         let session_id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_millis() as u64);
 
         Self {
             scale: scale.clamp(0.01, 1.0),
@@ -208,11 +206,19 @@ pub fn create_workload_by_name(
         "seq-write" => Some(Box::new(SequentialWriteBenchmark::new(config.file_size()))),
         "rand-write" => Some(Box::new(RandomWriteBenchmark::new(config.file_size()))),
         // Synthetic metadata
-        "readdir" => Some(Box::new(DirectoryListingBenchmark::new(config.directory_size()))),
-        "stat" => Some(Box::new(MetadataBenchmark::new(config.scale_count(100, 10)))),
+        "readdir" => Some(Box::new(DirectoryListingBenchmark::new(
+            config.directory_size(),
+        ))),
+        "stat" => Some(Box::new(MetadataBenchmark::new(
+            config.scale_count(100, 10),
+        ))),
         // Synthetic lifecycle
-        "create" => Some(Box::new(FileCreationBenchmark::new(config.scale_count(100, 10)))),
-        "delete" => Some(Box::new(FileDeletionBenchmark::new(config.scale_count(100, 10)))),
+        "create" => Some(Box::new(FileCreationBenchmark::new(
+            config.scale_count(100, 10),
+        ))),
+        "delete" => Some(Box::new(FileDeletionBenchmark::new(
+            config.scale_count(100, 10),
+        ))),
         // Realistic workloads
         "ide" => Some(Box::new(IdeWorkload::new(config.clone()))),
         "working-set" => Some(Box::new(WorkingSetWorkload::new(config.clone()))),
@@ -298,12 +304,16 @@ pub fn create_metadata_workloads(config: &WorkloadConfig) -> Vec<Box<dyn crate::
 }
 
 /// Create all synthetic lifecycle workloads.
-pub fn create_lifecycle_workloads(config: &WorkloadConfig) -> Vec<Box<dyn crate::bench::Benchmark>> {
+pub fn create_lifecycle_workloads(
+    config: &WorkloadConfig,
+) -> Vec<Box<dyn crate::bench::Benchmark>> {
     create_workloads_by_names(workloads_by_category(WorkloadCategory::Lifecycle), config)
 }
 
 /// Create all synthetic workloads (I/O + metadata + lifecycle).
-pub fn create_synthetic_workloads(config: &WorkloadConfig) -> Vec<Box<dyn crate::bench::Benchmark>> {
+pub fn create_synthetic_workloads(
+    config: &WorkloadConfig,
+) -> Vec<Box<dyn crate::bench::Benchmark>> {
     let mut workloads = create_io_workloads(config);
     workloads.extend(create_metadata_workloads(config));
     workloads.extend(create_lifecycle_workloads(config));
@@ -311,7 +321,9 @@ pub fn create_synthetic_workloads(config: &WorkloadConfig) -> Vec<Box<dyn crate:
 }
 
 /// Create all realistic application workloads.
-pub fn create_realistic_workloads(config: &WorkloadConfig) -> Vec<Box<dyn crate::bench::Benchmark>> {
+pub fn create_realistic_workloads(
+    config: &WorkloadConfig,
+) -> Vec<Box<dyn crate::bench::Benchmark>> {
     create_workloads_by_names(workloads_by_category(WorkloadCategory::Realistic), config)
 }
 

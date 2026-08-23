@@ -3,8 +3,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clap::Args as ClapArgs;
-use tracing::instrument;
 use comfy_table::{Cell, Color, Table};
+use tracing::instrument;
 
 use crate::state::{MountEntry, MountStateManager};
 
@@ -37,7 +37,14 @@ pub fn execute(args: &Args) -> Result<()> {
     }
 
     if args.json {
-        output_json(&active, if args.include_stale { Some(&stale) } else { None })?;
+        output_json(
+            &active,
+            if args.include_stale {
+                Some(&stale)
+            } else {
+                None
+            },
+        )?;
     } else {
         if active.is_empty() && stale.is_empty() {
             eprintln!("No active mounts.");

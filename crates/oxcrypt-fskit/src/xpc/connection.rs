@@ -3,8 +3,8 @@
 //! This module provides the low-level connection to the FSKit extension's XPC service.
 //! It handles connection lifecycle, reconnection, and Objective-C interop.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use block2::RcBlock;
@@ -272,10 +272,7 @@ fn check_macos_version() -> bool {
     use std::process::Command;
 
     // Use sw_vers to get macOS version
-    let output = Command::new("sw_vers")
-        .arg("-productVersion")
-        .output()
-        .ok();
+    let output = Command::new("sw_vers").arg("-productVersion").output().ok();
 
     let Some(output) = output else {
         return false;

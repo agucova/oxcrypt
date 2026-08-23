@@ -6,9 +6,9 @@ use crate::backend::{cleanup_and_exit, mount_manager};
 use crate::components::{EmptyState, Sidebar, VaultDetail};
 use crate::dialogs::{AddVaultDialog, ConfigWarningDialog, CreateVaultDialog};
 use crate::menu::MenuBarEvent;
-use crate::state::{use_app_state, AppState, VaultConfig, VaultState};
+use crate::state::{AppState, VaultConfig, VaultState, use_app_state};
 use crate::tray::menu::VaultAction;
-use crate::tray::{update_tray_menu, TrayEvent};
+use crate::tray::{TrayEvent, update_tray_menu};
 use crate::windows::{SettingsWindow, StatsWindow, StatsWindowProps};
 
 /// Tailwind CSS stylesheet asset
@@ -128,7 +128,10 @@ fn open_settings_window() {
 /// Open the statistics window for a vault in a separate window
 pub fn open_stats_window(vault_id: String, vault_name: &str) {
     let window = dioxus::desktop::window();
-    let props = StatsWindowProps { vault_id, vault_name: vault_name.to_string() };
+    let props = StatsWindowProps {
+        vault_id,
+        vault_name: vault_name.to_string(),
+    };
     let dom = VirtualDom::new_with_props(StatsWindow, props);
     // Build a menu for this window to maintain consistent menu bar
     let menu = crate::menu::build_menu_bar();
@@ -261,7 +264,9 @@ fn handle_vault_action(
                 match result {
                     Ok(Ok(())) => {
                         tracing::info!("Vault {} locked via tray", vault_id_clone);
-                        app_state.write().set_vault_state(&vault_id_clone, VaultState::Locked);
+                        app_state
+                            .write()
+                            .set_vault_state(&vault_id_clone, VaultState::Locked);
                     }
                     Ok(Err(e)) => {
                         tracing::error!("Failed to lock vault via tray: {}", e);
@@ -284,7 +289,9 @@ fn handle_vault_action(
                 match result {
                     Ok(Ok(())) => {
                         tracing::info!("Vault {} force locked via tray", vault_id_clone);
-                        app_state.write().set_vault_state(&vault_id_clone, VaultState::Locked);
+                        app_state
+                            .write()
+                            .set_vault_state(&vault_id_clone, VaultState::Locked);
                     }
                     Ok(Err(e)) => {
                         tracing::error!("Failed to force lock vault via tray: {}", e);
@@ -303,7 +310,11 @@ fn handle_vault_action(
                     VaultState::Locked => vault.config.path.clone(),
                 };
                 if let Err(e) = open::that(&path_to_reveal) {
-                    tracing::error!("Failed to reveal vault at {}: {}", path_to_reveal.display(), e);
+                    tracing::error!(
+                        "Failed to reveal vault at {}: {}",
+                        path_to_reveal.display(),
+                        e
+                    );
                 }
             }
         }

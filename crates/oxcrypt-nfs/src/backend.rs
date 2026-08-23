@@ -5,13 +5,13 @@
 
 use crate::filesystem::CryptomatorNFS;
 use nfsserve::tcp::NFSTcp;
-use oxcrypt_mount::{BackendType, MountBackend, MountError, MountHandle, VaultStats};
 use oxcrypt_core::vault::operations_async::VaultOperationsAsync;
+use oxcrypt_mount::{BackendType, MountBackend, MountError, MountHandle, VaultStats};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
@@ -202,10 +202,7 @@ impl NfsBackend {
 
     #[cfg(target_os = "linux")]
     fn is_mounted(path: &Path) -> bool {
-        let output = Command::new("mountpoint")
-            .args(["-q"])
-            .arg(path)
-            .status();
+        let output = Command::new("mountpoint").args(["-q"]).arg(path).status();
         matches!(output, Ok(status) if status.success())
     }
 
@@ -322,8 +319,7 @@ impl MountBackend for NfsBackend {
         #[cfg(target_os = "linux")]
         {
             // Check if mount.nfs exists
-            Path::new("/sbin/mount.nfs").exists()
-                || Path::new("/usr/sbin/mount.nfs").exists()
+            Path::new("/sbin/mount.nfs").exists() || Path::new("/usr/sbin/mount.nfs").exists()
         }
         #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         {
@@ -378,16 +374,16 @@ impl MountBackend for NfsBackend {
         }
 
         // Create async operations wrapper
-        let runtime = Arc::new(
-            Runtime::new().map_err(|e| {
-                MountError::FilesystemCreation(format!("Failed to create runtime: {e}"))
-            })?,
-        );
+        let runtime = Arc::new(Runtime::new().map_err(|e| {
+            MountError::FilesystemCreation(format!("Failed to create runtime: {e}"))
+        })?);
 
         // Open the vault
-        let ops = Arc::new(VaultOperationsAsync::open(vault_path, password).map_err(|e| {
-            MountError::FilesystemCreation(format!("Failed to open vault: {e}"))
-        })?);
+        let ops = Arc::new(
+            VaultOperationsAsync::open(vault_path, password).map_err(|e| {
+                MountError::FilesystemCreation(format!("Failed to open vault: {e}"))
+            })?,
+        );
 
         // Create NFS filesystem
         let fs = CryptomatorNFS::new(ops);

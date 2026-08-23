@@ -139,7 +139,7 @@ impl DeadlineHeap {
     /// # Arguments
     ///
     /// * `is_valid` - Predicate that returns true if the entry is still valid
-    ///               (i.e., the request is still pending). Called with (request_id, generation).
+    ///   (i.e., the request is still pending). Called with (request_id, generation).
     pub fn compact<F>(&self, is_valid: F) -> usize
     where
         F: Fn(RequestId, u64) -> bool,

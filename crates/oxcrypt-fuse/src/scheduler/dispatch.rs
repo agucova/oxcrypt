@@ -50,6 +50,7 @@ impl Default for DispatchConfig {
 
 impl DispatchConfig {
     /// Apply lane reservation defaults.
+    #[must_use]
     pub fn with_reservations(mut self, reservations: &LaneReservations) -> Self {
         self.l1_reserved_slots = reservations.metadata_min;
         self.l3_reserved_slots = reservations.write_structural_min;

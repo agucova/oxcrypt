@@ -13,7 +13,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::mount_markers::{get_system_mounts_detailed, SystemMount};
+use crate::mount_markers::{SystemMount, get_system_mounts_detailed};
 
 /// Default timeout for filesystem accessibility checks (deprecated functions only)
 pub const DEFAULT_ACCESS_TIMEOUT: Duration = Duration::from_millis(500);
@@ -157,9 +157,7 @@ pub fn is_path_accessible(path: &Path, timeout: Duration) -> bool {
 
     let path = path.to_path_buf();
     BOUNDED_FS_POOL
-        .run_with_timeout(timeout, move || {
-            std::fs::metadata(&path).map(|_| true)
-        })
+        .run_with_timeout(timeout, move || std::fs::metadata(&path).map(|_| true))
         .unwrap_or(false)
 }
 
@@ -221,8 +219,8 @@ pub fn check_mountpoint_status(path: &Path, timeout: Duration) -> MountPointStat
 
     let path_buf = path.to_path_buf();
 
-    let result = BOUNDED_FS_POOL.run_with_timeout(timeout, move || {
-        match std::fs::metadata(&path_buf) {
+    let result =
+        BOUNDED_FS_POOL.run_with_timeout(timeout, move || match std::fs::metadata(&path_buf) {
             Ok(meta) => {
                 if meta.is_dir() {
                     match std::fs::read_dir(&path_buf) {
@@ -238,8 +236,7 @@ pub fn check_mountpoint_status(path: &Path, timeout: Duration) -> MountPointStat
             }
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(MountPointStatus::DoesNotExist),
             Err(e) => Ok(MountPointStatus::Error(e.to_string())),
-        }
-    });
+        });
 
     match result {
         Ok(status) => status,
@@ -381,10 +378,7 @@ pub fn find_available_mountpoint(base_path: &Path) -> Result<PathBuf, MountPoint
         let suffixed_path = PathBuf::from(format!("{base_str}-{suffix}"));
 
         if is_path_mounted(&suffixed_path).is_none() {
-            tracing::info!(
-                "Using alternative mount point: {}",
-                suffixed_path.display()
-            );
+            tracing::info!("Using alternative mount point: {}", suffixed_path.display());
             return Ok(suffixed_path);
         }
     }

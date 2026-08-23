@@ -39,9 +39,7 @@ const READ_PARTIAL_PROB: f64 = 0.20;
 // Write = 1.0 - READ_FULL - READ_PARTIAL = 0.10
 
 /// Working set workload phases for progress reporting.
-const WORKING_SET_PHASES: &[&str] = &[
-    "Zipf operations",
-];
+const WORKING_SET_PHASES: &[&str] = &["Zipf operations"];
 
 /// Working Set Workload.
 ///
@@ -83,7 +81,7 @@ impl WorkingSetWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, _iteration: usize) -> PathBuf {
         mount_point.join(format!("bench_working_set_{}", self.config.session_id))
     }
@@ -97,7 +95,7 @@ impl WorkingSetWorkload {
     }
 
     /// Generate file size: mix of 1KB-1MB with bias toward smaller files.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn generate_file_size(&self, rng: &mut ChaCha8Rng) -> usize {
         let choice = rng.random::<f64>();
         if choice < 0.50 {
@@ -132,7 +130,7 @@ impl WorkingSetWorkload {
     }
 
     /// Select operation type: full read, partial read, or write.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn select_operation(&self, rng: &mut ChaCha8Rng) -> Operation {
         let roll = rng.random::<f64>();
 
@@ -184,7 +182,9 @@ impl Benchmark for WorkingSetWorkload {
 
         // Create subdirectories
         for subdir in 0..self.total_files.div_ceil(100) {
-            let dir = self.workload_dir(mount_point, iteration).join(format!("dir_{subdir:02}"));
+            let dir = self
+                .workload_dir(mount_point, iteration)
+                .join(format!("dir_{subdir:02}"));
             fs::create_dir_all(&dir)?;
         }
 
@@ -266,7 +266,7 @@ impl Benchmark for WorkingSetWorkload {
         Ok(start.elapsed())
     }
 
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn cleanup(&self, mount_point: &Path, iteration: usize) -> Result<()> {
         let workload_dir = self.workload_dir(mount_point, iteration);
         if workload_dir.exists() {

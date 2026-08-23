@@ -35,11 +35,6 @@ impl FileProviderBackend {
         Self
     }
 
-    /// Check if the host app is available.
-    fn is_host_app_available() -> bool {
-        XpcClient::connect().is_ok()
-    }
-
     /// Check if the File Provider extension is registered with pluginkit.
     ///
     /// Returns true if the extension appears in the File Provider extension list.
@@ -67,8 +62,8 @@ impl FileProviderBackend {
         // macOS transforms the display name to: <BundlePrefix>-<SanitizedDisplayName>
         // e.g., "Large Videos" becomes "OxCryptFileProvider-LargeVideos"
         // The prefix comes from the host app's CFBundleExecutable (OxCryptFileProvider)
-        let sanitized_name = display_name.replace(" ", "").replace("(", "").replace(")", "");
-        let folder_name = format!("OxCryptFileProvider-{}", sanitized_name);
+        let sanitized_name = display_name.replace([' ', '(', ')'], "");
+        let folder_name = format!("OxCryptFileProvider-{sanitized_name}");
         let expected_path = cloud_storage.join(&folder_name);
 
         debug!("Waiting for CloudStorage folder: {:?}", expected_path);
@@ -153,9 +148,8 @@ impl MountBackend for FileProviderBackend {
         #[cfg(target_os = "macos")]
         {
             // Check if extension is ready or can be installed
-            let manager = match ExtensionManager::new() {
-                Ok(m) => m,
-                Err(_) => return false,
+            let Ok(manager) = ExtensionManager::new() else {
+                return false;
             };
 
             let status = manager.status();
@@ -187,7 +181,9 @@ impl MountBackend for FileProviderBackend {
                     );
                 }
                 ExtensionStatus::Corrupted => {
-                    return Some("Extension corrupted. It will be reinstalled on next mount.".to_string());
+                    return Some(
+                        "Extension corrupted. It will be reinstalled on next mount.".to_string(),
+                    );
                 }
                 _ => {}
             }
@@ -233,7 +229,8 @@ impl MountBackend for FileProviderBackend {
         // Connect to XPC service (spawns host app with CLI)
         let xpc = XpcClient::connect().map_err(|e| match e {
             XpcError::HostAppNotFound => MountError::FilesystemCreation(
-                "File Provider host app not found. Extension will be installed automatically.".into(),
+                "File Provider host app not found. Extension will be installed automatically."
+                    .into(),
             ),
             e => MountError::FilesystemCreation(e.to_string()),
         })?;

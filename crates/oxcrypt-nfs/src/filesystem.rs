@@ -8,8 +8,8 @@ use crate::inode::{InodeEntry, InodeKind, NfsInodeTable, ROOT_FILEID};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use nfsserve::nfs::{
-    fattr3, fileid3, filename3, ftype3, nfspath3, nfsstat3, nfsstring, nfstime3, sattr3,
-    set_size3, specdata3,
+    fattr3, fileid3, filename3, ftype3, nfspath3, nfsstat3, nfsstring, nfstime3, sattr3, set_size3,
+    specdata3,
 };
 use nfsserve::vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities};
 use oxcrypt_core::fs::streaming::encrypted_to_plaintext_size_or_zero_for_cipher;
@@ -103,7 +103,9 @@ impl CryptomatorNFS {
 
     /// Flush all dirty buffers to vault. Called during unmount.
     pub async fn flush_all_buffers(&self) -> Result<(), nfsstat3> {
-        let buffer_ids: Vec<fileid3> = self.write_buffers.iter()
+        let buffer_ids: Vec<fileid3> = self
+            .write_buffers
+            .iter()
             .map(|entry| *entry.key())
             .collect();
 
@@ -133,7 +135,8 @@ impl CryptomatorNFS {
                 let dir_id = buffer.dir_id().clone();
                 let filename = buffer.filename().to_string();
 
-                let result = self.ops
+                let result = self
+                    .ops
                     .write_file(buffer.dir_id(), buffer.filename(), buffer.content())
                     .await
                     .map_err(|e| {
@@ -333,7 +336,10 @@ impl CryptomatorNFS {
     }
 
     /// Gets an inode entry or returns NFS3ERR_STALE.
-    fn get_entry(&self, id: fileid3) -> Result<dashmap::mapref::one::Ref<'_, u64, InodeEntry>, nfsstat3> {
+    fn get_entry(
+        &self,
+        id: fileid3,
+    ) -> Result<dashmap::mapref::one::Ref<'_, u64, InodeEntry>, nfsstat3> {
         self.inodes.get(id).ok_or(nfsstat3::NFS3ERR_STALE)
     }
 
@@ -426,7 +432,14 @@ impl NFSFileSystem for CryptomatorNFS {
         }
 
         // Try as symlink - use O(1) lookup instead of reading the full target
-        if self.ops.find_symlink(&dir_id, name).await.ok().flatten().is_some() {
+        if self
+            .ops
+            .find_symlink(&dir_id, name)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+        {
             let kind = InodeKind::Symlink {
                 dir_id: dir_id.clone(),
                 name: name.to_string(),
@@ -471,7 +484,10 @@ impl NFSFileSystem for CryptomatorNFS {
                     Ok(Some(file_info)) => {
                         // Convert encrypted size to plaintext size
                         let cipher = self.ops.cipher_combo();
-                        let size = encrypted_to_plaintext_size_or_zero_for_cipher(file_info.encrypted_size, cipher);
+                        let size = encrypted_to_plaintext_size_or_zero_for_cipher(
+                            file_info.encrypted_size,
+                            cipher,
+                        );
                         // Read mtime from encrypted file
                         let mtime = Self::get_mtime(&file_info.encrypted_path);
                         Ok(self.file_attr(id, size, mtime))
@@ -560,7 +576,8 @@ impl NFSFileSystem for CryptomatorNFS {
                     };
                     // Safe cast: size from NFS protocol is u64, converted to usize for take()
                     #[allow(clippy::cast_possible_truncation)]
-                    let truncated: Vec<u8> = decrypted.content.into_iter().take(size as usize).collect();
+                    let truncated: Vec<u8> =
+                        decrypted.content.into_iter().take(size as usize).collect();
                     if let Err(e) = self.ops.write_file(&dir_id, &name, &truncated).await {
                         self.stats.record_metadata_latency(start.elapsed());
                         self.stats.record_error();
@@ -735,14 +752,14 @@ impl NFSFileSystem for CryptomatorNFS {
         // Write to buffer
         buffer.write(offset, data);
         let new_size = buffer.len();
-        let buffer_size = new_size;  // Capture size before dropping buffer
+        let buffer_size = new_size; // Capture size before dropping buffer
         drop(buffer); // Release buffer before flushing
 
         // Record bytes written
         self.stats.record_write(data.len() as u64);
 
         // Conditionally flush based on buffer size
-        let should_flush = buffer_size >= (*FLUSH_THRESHOLD) as u64;  // Large buffer
+        let should_flush = buffer_size >= (*FLUSH_THRESHOLD) as u64; // Large buffer
 
         if should_flush {
             debug!(id, buffer_size, "Flushing buffer (threshold reached)");
@@ -950,9 +967,7 @@ impl NFSFileSystem for CryptomatorNFS {
 
         // Register in inode table
         let child_path = parent_path.join(name);
-        let kind = InodeKind::Directory {
-            dir_id: new_dir_id,
-        };
+        let kind = InodeKind::Directory { dir_id: new_dir_id };
         let id = self.inodes.get_or_insert(&child_path, kind);
 
         // Newly created directory, use current time
@@ -1008,7 +1023,14 @@ impl NFSFileSystem for CryptomatorNFS {
                 self.stats.record_metadata_latency(start.elapsed());
                 return Err(vault_error_to_nfsstat(&e));
             }
-        } else if self.ops.find_symlink(&dir_id, name).await.ok().flatten().is_some() {
+        } else if self
+            .ops
+            .find_symlink(&dir_id, name)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+        {
             // It's a symlink - use O(1) lookup
             if let Err(e) = self.ops.delete_symlink(&dir_id, name).await {
                 self.stats.record_error();
@@ -1221,7 +1243,8 @@ impl NFSFileSystem for CryptomatorNFS {
             };
             let id = self.inodes.get_or_insert(&child_path, kind);
             // Convert encrypted size to plaintext size
-            let size = encrypted_to_plaintext_size_or_zero_for_cipher(file_info.encrypted_size, cipher);
+            let size =
+                encrypted_to_plaintext_size_or_zero_for_cipher(file_info.encrypted_size, cipher);
             // Read mtime from encrypted file
             let mtime = Self::get_mtime(&file_info.encrypted_path);
             let attr = self.file_attr(id, size, mtime);
@@ -1298,8 +1321,11 @@ impl NFSFileSystem for CryptomatorNFS {
                 .map_or(0, |i| i + 1)
         };
 
-        let result_entries: Vec<DirEntry> =
-            entries.into_iter().skip(start_idx).take(max_entries).collect();
+        let result_entries: Vec<DirEntry> = entries
+            .into_iter()
+            .skip(start_idx)
+            .take(max_entries)
+            .collect();
 
         let end = result_entries.len() < max_entries;
 
@@ -1504,7 +1530,9 @@ impl NFSFileSystem for ArcNfs {
         to_dirid: fileid3,
         to_filename: &filename3,
     ) -> Result<(), nfsstat3> {
-        self.0.rename(from_dirid, from_filename, to_dirid, to_filename).await
+        self.0
+            .rename(from_dirid, from_filename, to_dirid, to_filename)
+            .await
     }
 
     async fn readdir(

@@ -8,7 +8,7 @@
 
 mod common;
 
-use common::{multi_chunk_content, random_bytes, sha256, TestServer};
+use common::{TestServer, multi_chunk_content, random_bytes, sha256};
 use reqwest::StatusCode;
 use tokio::task::JoinSet;
 
@@ -36,17 +36,10 @@ async fn test_concurrent_reads_same_file() {
             match result {
                 Ok(data) => {
                     let hash = sha256(&data);
-                    assert_eq!(
-                        hash, expected,
-                        "Reader {} got corrupted data",
-                        i
-                    );
+                    assert_eq!(hash, expected, "Reader {} got corrupted data", i);
                     Ok(())
                 }
-                Err((status, body)) => Err(format!(
-                    "Reader {} failed: {} - {}",
-                    i, status, body
-                )),
+                Err((status, body)) => Err(format!("Reader {} failed: {} - {}", i, status, body)),
             }
         });
     }
@@ -64,13 +57,13 @@ async fn test_concurrent_reads_different_files() {
     let client = server.shared_client();
 
     // Create multiple files
-    let contents: Vec<Vec<u8>> = (0..5)
-        .map(|i| random_bytes(1000 + i * 100))
-        .collect();
+    let contents: Vec<Vec<u8>> = (0..5).map(|i| random_bytes(1000 + i * 100)).collect();
     let hashes: Vec<[u8; 32]> = contents.iter().map(|c| sha256(c)).collect();
 
     for (i, content) in contents.iter().enumerate() {
-        server.put_ok(&format!("/file{}.bin", i), content.clone()).await;
+        server
+            .put_ok(&format!("/file{}.bin", i), content.clone())
+            .await;
     }
 
     // Concurrent reads of different files
@@ -107,9 +100,7 @@ async fn test_concurrent_writes_different_files() {
     let server = TestServer::with_temp_vault().await;
     let client = server.shared_client();
 
-    let contents: Vec<Vec<u8>> = (0..5)
-        .map(|i| random_bytes(5000 + i * 1000))
-        .collect();
+    let contents: Vec<Vec<u8>> = (0..5).map(|i| random_bytes(5000 + i * 1000)).collect();
     let hashes: Vec<[u8; 32]> = contents.iter().map(|c| sha256(c)).collect();
 
     // Concurrent writes to different files
@@ -167,7 +158,10 @@ async fn test_concurrent_write_same_file_last_wins() {
     }
 
     // File should exist with one of the written contents
-    let data = server.get_bytes("/contested.txt").await.expect("Should exist");
+    let data = server
+        .get_bytes("/contested.txt")
+        .await
+        .expect("Should exist");
     let content = String::from_utf8_lossy(&data);
     assert!(
         content.starts_with("writer_") && content.ends_with("_content"),
@@ -259,9 +253,7 @@ async fn test_concurrent_mkcol_same_path() {
     // Multiple concurrent MKCOL on same path
     for _ in 0..5 {
         let client = client.clone();
-        handles.spawn(async move {
-            client.mkcol("/racedir").await
-        });
+        handles.spawn(async move { client.mkcol("/racedir").await });
     }
 
     let mut success_count = 0;
@@ -275,10 +267,7 @@ async fn test_concurrent_mkcol_same_path() {
     }
 
     // At least one should succeed
-    assert!(
-        success_count >= 1,
-        "At least one MKCOL should succeed"
-    );
+    assert!(success_count >= 1, "At least one MKCOL should succeed");
 
     // Directory should exist
     let resp = server.propfind("/racedir", "0").await;
@@ -321,11 +310,7 @@ async fn test_concurrent_file_in_new_dir() {
     for i in 0..5 {
         let path = format!("/newdir/file{}.txt", i);
         let resp = server.get(&path).await;
-        assert!(
-            resp.status().is_success(),
-            "File {} should exist",
-            i
-        );
+        assert!(resp.status().is_success(), "File {} should exist", i);
     }
 }
 
@@ -349,7 +334,9 @@ async fn test_read_after_parallel_write() {
     handles.spawn(async move {
         // Small delay to let readers start
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        let _ = writer_client.put("/cache_test.txt", b"updated".to_vec()).await;
+        let _ = writer_client
+            .put("/cache_test.txt", b"updated".to_vec())
+            .await;
     });
 
     // Readers
@@ -368,7 +355,10 @@ async fn test_read_after_parallel_write() {
     }
 
     // Final read should see updated content
-    let final_data = server.get_bytes("/cache_test.txt").await.expect("Should exist");
+    let final_data = server
+        .get_bytes("/cache_test.txt")
+        .await
+        .expect("Should exist");
     assert_eq!(
         final_data.as_ref(),
         b"updated",
@@ -390,7 +380,9 @@ async fn test_propfind_during_writes() {
         let writer_client = client.clone();
         handles.spawn(async move {
             let path = format!("/listing_test/file{}.txt", i);
-            let _ = writer_client.put(&path, format!("content{}", i).into_bytes()).await;
+            let _ = writer_client
+                .put(&path, format!("content{}", i).into_bytes())
+                .await;
         });
     }
 
@@ -413,7 +405,11 @@ async fn test_propfind_during_writes() {
     for i in 0..5 {
         let path = format!("/listing_test/file{}.txt", i);
         let resp = server.get(&path).await;
-        assert!(resp.status().is_success(), "File {} should exist after concurrent ops", i);
+        assert!(
+            resp.status().is_success(),
+            "File {} should exist after concurrent ops",
+            i
+        );
     }
 }
 
@@ -488,10 +484,6 @@ async fn test_many_small_files() {
     for i in 0..file_count {
         let path = format!("/small{}.txt", i);
         let resp = server.get(&path).await;
-        assert!(
-            resp.status().is_success(),
-            "Small file {} should exist",
-            i
-        );
+        assert!(resp.status().is_success(), "Small file {} should exist", i);
     }
 }

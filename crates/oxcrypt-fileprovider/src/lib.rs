@@ -1,6 +1,6 @@
 //! Apple File Provider backend for Cryptomator vault mounting.
 //!
-//! This crate provides a [`MountBackend`] implementation using Apple's File Provider API
+//! This crate provides a [`MountBackend`](oxcrypt_mount::MountBackend) implementation using Apple's File Provider API
 //! (NSFileProviderReplicatedExtension) to expose Cryptomator vaults as native macOS
 //! cloud storage volumes in `~/Library/CloudStorage/`.
 //!
@@ -59,12 +59,11 @@ pub mod watcher;
 pub mod recovery;
 
 pub use filesystem::{
-    fp_fs_new, FileProviderFilesystem, FileProviderItem, FpError, FpResultChanges,
-    FpResultContents, FpResultEnumeration, FpResultFs, FpResultItem, FpResultUnit,
-    FpResultWorkingSet,
+    FileProviderFilesystem, FileProviderItem, FpError, FpResultChanges, FpResultContents,
+    FpResultEnumeration, FpResultFs, FpResultItem, FpResultUnit, FpResultWorkingSet, fp_fs_new,
 };
 
-pub use item::{decode_identifier, encode_identifier, ItemType, ROOT_ITEM_IDENTIFIER};
+pub use item::{ItemType, ROOT_ITEM_IDENTIFIER, decode_identifier, encode_identifier};
 
 #[swift_bridge::bridge]
 mod ffi {

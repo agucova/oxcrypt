@@ -18,7 +18,9 @@ use reqwest::StatusCode;
 async fn test_lock_request_accepted() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/file.txt", b"content to lock".to_vec()).await;
+    server
+        .put_ok("/file.txt", b"content to lock".to_vec())
+        .await;
 
     let resp = server.lock("/file.txt").await;
 
@@ -130,7 +132,9 @@ async fn test_unlock_without_prior_lock() {
     server.put_ok("/unlocked.txt", b"content".to_vec()).await;
 
     // Try to unlock without locking first
-    let resp = server.unlock("/unlocked.txt", "urn:uuid:invalid-token").await;
+    let resp = server
+        .unlock("/unlocked.txt", "urn:uuid:invalid-token")
+        .await;
 
     // May succeed (FakeLs) or fail with 409 Conflict or 412 Precondition Failed
     assert!(
@@ -206,10 +210,7 @@ async fn test_read_locked_file() {
 
     // Reading should still work (locks typically only protect writes)
     let read_bytes = server.get_bytes("/readable.txt").await;
-    assert!(
-        read_bytes.is_ok(),
-        "Should be able to read locked file"
-    );
+    assert!(read_bytes.is_ok(), "Should be able to read locked file");
     assert_eq!(&read_bytes.unwrap()[..], content);
 }
 

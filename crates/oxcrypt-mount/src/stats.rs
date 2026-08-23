@@ -32,8 +32,8 @@
 //! println!("Cache hit rate: {:.1}%", hit_rate * 100.0);
 //! ```
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 
 use parking_lot::RwLock;
@@ -821,7 +821,10 @@ impl VaultStats {
     ///
     /// This allows the caller to specify custom warning thresholds
     /// for cache health assessment.
-    pub fn snapshot_with_thresholds(&self, thresholds: CacheHealthThresholds) -> VaultStatsSnapshot {
+    pub fn snapshot_with_thresholds(
+        &self,
+        thresholds: CacheHealthThresholds,
+    ) -> VaultStatsSnapshot {
         VaultStatsSnapshot {
             total_reads: self.read_count(),
             total_writes: self.write_count(),

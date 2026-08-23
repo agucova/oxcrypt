@@ -28,7 +28,10 @@ impl DirectoryListingBenchmark {
 
     /// Get the test directory path.
     fn test_dir_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_readdir_{}_iter{}", self.num_files, iteration))
+        mount_point.join(format!(
+            "bench_readdir_{}_iter{}",
+            self.num_files, iteration
+        ))
     }
 }
 
@@ -74,7 +77,10 @@ impl Benchmark for DirectoryListingBenchmark {
             if i % 100 == 0 || iter_elapsed > Duration::from_millis(100) {
                 tracing::debug!(
                     "File {}/{}: {:?} (total: {:?})",
-                    i + 1, self.num_files, iter_elapsed, file_start.elapsed()
+                    i + 1,
+                    self.num_files,
+                    iter_elapsed,
+                    file_start.elapsed()
                 );
             }
         }
@@ -242,9 +248,7 @@ impl Benchmark for MetadataBenchmark {
                 }
             }
             // Now remove the directory
-            fs::remove_dir_all(&dir_path).or_else(|_| {
-                fs::remove_dir(&dir_path)
-            })?;
+            fs::remove_dir_all(&dir_path).or_else(|_| fs::remove_dir(&dir_path))?;
         }
         Ok(())
     }

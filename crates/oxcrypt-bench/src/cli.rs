@@ -1,13 +1,17 @@
 //! Command-line interface for the benchmark harness.
 
 // Allow CLI-specific patterns
-#![allow(clippy::struct_excessive_bools, clippy::unused_self, clippy::assigning_clones)]
+#![allow(
+    clippy::struct_excessive_bools,
+    clippy::unused_self,
+    clippy::assigning_clones
+)]
 
-use crate::assets::{AssetCache, AssetDownloader, AssetCategory};
+use crate::assets::{AssetCache, AssetCategory, AssetDownloader};
 use crate::config::{BenchmarkConfig, BenchmarkSuite, Implementation};
 #[cfg(all(target_os = "macos", feature = "fileprovider"))]
 use crate::mount::MountBackend;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -198,7 +202,10 @@ impl Cli {
         let cache = AssetCache::new()?;
         let total_size = cache.size()?;
         cache.clear()?;
-        println!("Cleared asset cache ({})", crate::assets::format_size(total_size));
+        println!(
+            "Cleared asset cache ({})",
+            crate::assets::format_size(total_size)
+        );
         Ok(())
     }
 
@@ -301,16 +308,12 @@ impl Cli {
             Some(p) => p.clone(),
             None => {
                 // Prompt for password
-                rpassword::prompt_password("Vault password: ")
-                    .context("Failed to read password")?
+                rpassword::prompt_password("Vault password: ").context("Failed to read password")?
             }
         };
 
         // Parse suite
-        let suite: BenchmarkSuite = self
-            .suite
-            .parse()
-            .map_err(|e: String| anyhow::anyhow!(e))?;
+        let suite: BenchmarkSuite = self.suite.parse().map_err(|e: String| anyhow::anyhow!(e))?;
 
         // Parse implementations
         let implementations = self.parse_implementations()?;
@@ -387,18 +390,24 @@ impl Cli {
                 }
                 "fileprovider" | "fp" => {
                     #[cfg(not(all(target_os = "macos", feature = "fileprovider")))]
-                    bail!("FileProvider is only available on macOS 13+ (enable 'fileprovider' feature)");
+                    bail!(
+                        "FileProvider is only available on macOS 13+ (enable 'fileprovider' feature)"
+                    );
 
                     #[cfg(all(target_os = "macos", feature = "fileprovider"))]
                     {
                         if !crate::mount::fileprovider_backend().is_available() {
-                            bail!("FileProvider extension is not enabled. Enable in System Settings → Extensions → File Provider");
+                            bail!(
+                                "FileProvider extension is not enabled. Enable in System Settings → Extensions → File Provider"
+                            );
                         }
                         Implementation::OxidizedFileProvider
                     }
                 }
                 "external" | "cryptomator" => Implementation::OfficialCryptomator,
-                _ => bail!("Unknown implementation: {s}. Valid options: fuse, fskit, webdav, nfs, fileprovider, external"),
+                _ => bail!(
+                    "Unknown implementation: {s}. Valid options: fuse, fskit, webdav, nfs, fileprovider, external"
+                ),
             };
             if !impls.contains(&impl_type) {
                 impls.push(impl_type);
@@ -447,7 +456,10 @@ impl Cli {
     /// Validate the configuration.
     fn validate_config(&self, config: &BenchmarkConfig) -> Result<()> {
         // Check external vault path if that implementation is requested
-        if config.implementations.contains(&Implementation::OfficialCryptomator) {
+        if config
+            .implementations
+            .contains(&Implementation::OfficialCryptomator)
+        {
             match &config.external_vault_path {
                 Some(path) => {
                     if !path.exists() {
@@ -494,7 +506,11 @@ impl Cli {
             if !unknown.is_empty() {
                 bail!(
                     "Unknown workload(s): {}. Valid options: {}",
-                    unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "),
+                    unknown
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", "),
                     valid_names.join(", ")
                 );
             }
@@ -556,15 +572,39 @@ mod tests {
 
     #[test]
     fn test_suite_parsing() {
-        assert_eq!("quick".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Quick);
-        assert_eq!("read".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Read);
-        assert_eq!("write".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Write);
-        assert_eq!("synthetic".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Synthetic);
-        assert_eq!("metadata".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Metadata);
-        assert_eq!("meta".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Metadata);
-        assert_eq!("SYNTHETIC".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Synthetic);
+        assert_eq!(
+            "quick".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Quick
+        );
+        assert_eq!(
+            "read".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Read
+        );
+        assert_eq!(
+            "write".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Write
+        );
+        assert_eq!(
+            "synthetic".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Synthetic
+        );
+        assert_eq!(
+            "metadata".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Metadata
+        );
+        assert_eq!(
+            "meta".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Metadata
+        );
+        assert_eq!(
+            "SYNTHETIC".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Synthetic
+        );
         // "full" is kept as alias for backward compatibility
-        assert_eq!("full".parse::<BenchmarkSuite>().unwrap(), BenchmarkSuite::Synthetic);
+        assert_eq!(
+            "full".parse::<BenchmarkSuite>().unwrap(),
+            BenchmarkSuite::Synthetic
+        );
         assert!("invalid".parse::<BenchmarkSuite>().is_err());
     }
 }

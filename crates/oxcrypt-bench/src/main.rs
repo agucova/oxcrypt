@@ -10,14 +10,16 @@ use anyhow::{Context, Result};
 use clap::Parser;
 #[allow(unused_imports)]
 use oxcrypt_bench::{
-    bench::{create_suite, BenchmarkRunner},
+    bench::{BenchmarkRunner, create_suite},
     cli::Cli,
     config::{BenchmarkConfig, Implementation},
     results::export_json,
 };
-use oxcrypt_mount::{cleanup_stale_mounts, signal, CleanupAction, CleanupOptions, TrackedMountInfo};
+use oxcrypt_mount::{
+    CleanupAction, CleanupOptions, TrackedMountInfo, cleanup_stale_mounts, signal,
+};
 use tracing_indicatif::IndicatifLayer;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 fn main() -> Result<()> {
     // Install a custom panic hook that avoids backtrace printing.
@@ -61,14 +63,13 @@ fn main() -> Result<()> {
     // Set up logging with indicatif integration
     // This ensures log messages appear above progress bars without clobbering them
     // Respect RUST_LOG if set, otherwise use default based on verbose flag
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            if cli.verbose {
-                EnvFilter::new("info")
-            } else {
-                EnvFilter::new("warn")
-            }
-        });
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        if cli.verbose {
+            EnvFilter::new("info")
+        } else {
+            EnvFilter::new("warn")
+        }
+    });
 
     let indicatif_layer = IndicatifLayer::new();
     tracing_subscriber::registry()
@@ -95,7 +96,9 @@ fn main() -> Result<()> {
     let json_output = cli.json.clone();
 
     // Build configuration
-    let config = cli.into_config().context("Failed to create benchmark config")?;
+    let config = cli
+        .into_config()
+        .context("Failed to create benchmark config")?;
 
     // Print banner
     print_banner(&config);
@@ -172,11 +175,7 @@ fn proactive_cleanup() -> Result<()> {
                 );
             }
             CleanupAction::Skipped { reason } => {
-                tracing::debug!(
-                    "Skipped {}: {}",
-                    result.mountpoint.display(),
-                    reason
-                );
+                tracing::debug!("Skipped {}: {}", result.mountpoint.display(), reason);
             }
             CleanupAction::RemovedFromState | CleanupAction::Warning => {}
         }
@@ -190,7 +189,10 @@ fn print_flamegraph_summary(
     results: &[oxcrypt_bench::bench::BenchmarkResult],
     config: &BenchmarkConfig,
 ) {
-    let flamegraph_count = results.iter().filter(|r| r.flamegraph_path.is_some()).count();
+    let flamegraph_count = results
+        .iter()
+        .filter(|r| r.flamegraph_path.is_some())
+        .count();
 
     if flamegraph_count == 0 {
         return;
@@ -203,10 +205,7 @@ fn print_flamegraph_summary(
         println!("{:-^80}", " FLAMEGRAPHS ");
     }
     println!();
-    println!(
-        "Flamegraphs saved to: {}",
-        config.flamegraph_dir.display()
-    );
+    println!("Flamegraphs saved to: {}", config.flamegraph_dir.display());
     println!();
 
     // Group by implementation
@@ -243,9 +242,10 @@ fn print_flamegraph_summary(
             .flamegraph_dir
             .join(format!("{}_all.svg", impl_type.short_name().to_lowercase()));
         if aggregate_path.exists()
-            && let Some(filename) = aggregate_path.file_name() {
-                println!("  - {}", filename.to_string_lossy());
-            }
+            && let Some(filename) = aggregate_path.file_name()
+        {
+            println!("  - {}", filename.to_string_lossy());
+        }
     }
     println!();
 }
@@ -254,9 +254,10 @@ fn print_flamegraph_summary(
 fn print_banner(config: &BenchmarkConfig) {
     use owo_colors::OwoColorize;
 
-    let vault_name = config
-        .vault_path
-        .file_name().map_or_else(|| config.vault_path.display().to_string(), |n| n.to_string_lossy().to_string());
+    let vault_name = config.vault_path.file_name().map_or_else(
+        || config.vault_path.display().to_string(),
+        |n| n.to_string_lossy().to_string(),
+    );
 
     let impls = config
         .implementations
@@ -302,7 +303,10 @@ fn validate_environment(config: &BenchmarkConfig) -> Result<()> {
     }
 
     // Check FSKit availability
-    if config.implementations.contains(&Implementation::OxidizedFsKit) {
+    if config
+        .implementations
+        .contains(&Implementation::OxidizedFsKit)
+    {
         #[cfg(target_os = "macos")]
         {
             if !oxcrypt_bench::platform::fskit_available() {
@@ -319,13 +323,13 @@ fn validate_environment(config: &BenchmarkConfig) -> Result<()> {
     }
 
     // Check external vault mount
-    if config.implementations.contains(&Implementation::OfficialCryptomator) {
+    if config
+        .implementations
+        .contains(&Implementation::OfficialCryptomator)
+    {
         if let Some(ref path) = config.external_vault_path {
             if !path.exists() {
-                anyhow::bail!(
-                    "External vault path does not exist: {}",
-                    path.display()
-                );
+                anyhow::bail!("External vault path does not exist: {}", path.display());
             }
             // Check it's a mount point by trying to read
             if std::fs::read_dir(path).is_err() {
@@ -352,29 +356,34 @@ fn cleanup_benchmark_artifacts(config: &BenchmarkConfig) {
     // Only clean up the external vault mount if specified
     // (other backends create temporary mounts that don't persist)
     if let Some(ref mount_path) = config.external_vault_path
-        && mount_path.exists() {
-            tracing::debug!("Cleaning up benchmark artifacts from {}", mount_path.display());
+        && mount_path.exists()
+    {
+        tracing::debug!(
+            "Cleaning up benchmark artifacts from {}",
+            mount_path.display()
+        );
 
-            match std::fs::read_dir(mount_path) {
-                Ok(entries) => {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if let Some(name) = path.file_name()
-                            && name.to_string_lossy().starts_with("bench_") {
-                                tracing::info!("Removing leftover artifact: {}", path.display());
-                                if path.is_dir() {
-                                    if let Err(e) = std::fs::remove_dir_all(&path) {
-                                        tracing::warn!("Failed to remove {}: {}", path.display(), e);
-                                    }
-                                } else if let Err(e) = std::fs::remove_file(&path) {
-                                    tracing::warn!("Failed to remove {}: {}", path.display(), e);
-                                }
+        match std::fs::read_dir(mount_path) {
+            Ok(entries) => {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name()
+                        && name.to_string_lossy().starts_with("bench_")
+                    {
+                        tracing::info!("Removing leftover artifact: {}", path.display());
+                        if path.is_dir() {
+                            if let Err(e) = std::fs::remove_dir_all(&path) {
+                                tracing::warn!("Failed to remove {}: {}", path.display(), e);
                             }
+                        } else if let Err(e) = std::fs::remove_file(&path) {
+                            tracing::warn!("Failed to remove {}: {}", path.display(), e);
+                        }
                     }
                 }
-                Err(e) => {
-                    tracing::warn!("Failed to read Cryptomator mount for cleanup: {}", e);
-                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to read Cryptomator mount for cleanup: {}", e);
             }
         }
+    }
 }

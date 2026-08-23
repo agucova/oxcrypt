@@ -131,11 +131,8 @@ impl MountManager {
 
         // Persist mount state for crash recovery
         if let Ok(state_manager) = DesktopMountState::new() {
-            let entry = MountEntry::new_gui_mount(
-                vault_path.to_path_buf(),
-                mp.clone(),
-                backend.id(),
-            );
+            let entry =
+                MountEntry::new_gui_mount(vault_path.to_path_buf(), mp.clone(), backend.id());
             if let Err(e) = state_manager.add_mount(entry) {
                 tracing::warn!("Failed to persist mount state: {}", e);
             }
@@ -172,16 +169,14 @@ impl MountManager {
         let backend = self.get_backend(backend_type)?;
 
         // Mount using the selected backend with options
-        let handle = backend.mount_with_options(vault_id, vault_path, password, mountpoint, options)?;
+        let handle =
+            backend.mount_with_options(vault_id, vault_path, password, mountpoint, options)?;
         let mp = handle.mountpoint().to_path_buf();
 
         // Persist mount state for crash recovery
         if let Ok(state_manager) = DesktopMountState::new() {
-            let entry = MountEntry::new_gui_mount(
-                vault_path.to_path_buf(),
-                mp.clone(),
-                backend.id(),
-            );
+            let entry =
+                MountEntry::new_gui_mount(vault_path.to_path_buf(), mp.clone(), backend.id());
             if let Err(e) = state_manager.add_mount(entry) {
                 tracing::warn!("Failed to persist mount state: {}", e);
             }
@@ -224,11 +219,8 @@ impl MountManager {
 
         // Persist mount state for crash recovery
         if let Ok(state_manager) = DesktopMountState::new() {
-            let entry = MountEntry::new_gui_mount(
-                vault_path.to_path_buf(),
-                mp.clone(),
-                backend.id(),
-            );
+            let entry =
+                MountEntry::new_gui_mount(vault_path.to_path_buf(), mp.clone(), backend.id());
             if let Err(e) = state_manager.add_mount(entry) {
                 tracing::warn!("Failed to persist mount state: {}", e);
             }
@@ -258,9 +250,10 @@ impl MountManager {
 
             // Remove from persisted state
             if let Ok(state_manager) = DesktopMountState::new()
-                && let Err(e) = state_manager.remove_mount(&mountpoint) {
-                    tracing::warn!("Failed to update mount state: {}", e);
-                }
+                && let Err(e) = state_manager.remove_mount(&mountpoint)
+            {
+                tracing::warn!("Failed to update mount state: {}", e);
+            }
 
             tracing::info!("Unmounted vault {} from {}", vault_id, mountpoint.display());
             Ok(())
@@ -282,11 +275,16 @@ impl MountManager {
 
             // Remove from persisted state
             if let Ok(state_manager) = DesktopMountState::new()
-                && let Err(e) = state_manager.remove_mount(&mountpoint) {
-                    tracing::warn!("Failed to update mount state: {}", e);
-                }
+                && let Err(e) = state_manager.remove_mount(&mountpoint)
+            {
+                tracing::warn!("Failed to update mount state: {}", e);
+            }
 
-            tracing::info!("Force unmounted vault {} from {}", vault_id, mountpoint.display());
+            tracing::info!(
+                "Force unmounted vault {} from {}",
+                vault_id,
+                mountpoint.display()
+            );
             Ok(())
         } else {
             Err(MountError::NotMounted)
@@ -367,14 +365,16 @@ impl MountManager {
         // Encode vault path as domain ID (matches FileProvider backend logic)
         let domain_id = base64::Engine::encode(
             &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            vault_path.to_string_lossy().as_bytes()
+            vault_path.to_string_lossy().as_bytes(),
         );
 
         let vault_path = vault_path.to_path_buf();
 
         // Register asynchronously
         tokio::spawn(async move {
-            service.register_domain(domain_id, display_name, vault_path).await;
+            service
+                .register_domain(domain_id, display_name, vault_path)
+                .await;
         });
     }
 
@@ -408,7 +408,7 @@ impl MountManager {
         // Encode vault path as domain ID (matches FileProvider backend logic)
         let domain_id = base64::Engine::encode(
             &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            vault_path.to_string_lossy().as_bytes()
+            vault_path.to_string_lossy().as_bytes(),
         );
 
         // Unregister asynchronously
@@ -436,7 +436,11 @@ impl MountManager {
         let mut mounts = self.mounts.lock();
         for (vault_id, handle) in mounts.drain() {
             let mountpoint = handle.mountpoint().to_path_buf();
-            tracing::info!("Unmounting vault {} from {}", vault_id, mountpoint.display());
+            tracing::info!(
+                "Unmounting vault {} from {}",
+                vault_id,
+                mountpoint.display()
+            );
 
             // Spawn unmount in a thread so we can timeout
             let (tx, rx) = std::sync::mpsc::channel();
@@ -451,9 +455,10 @@ impl MountManager {
                     tracing::info!("Successfully unmounted {}", vault_id);
                     // Remove from persisted state
                     if let Some(ref manager) = state_manager
-                        && let Err(e) = manager.remove_mount(&mountpoint) {
-                            tracing::warn!("Failed to update mount state: {}", e);
-                        }
+                        && let Err(e) = manager.remove_mount(&mountpoint)
+                    {
+                        tracing::warn!("Failed to update mount state: {}", e);
+                    }
                 }
                 Ok(Err(e)) => {
                     tracing::error!("Failed to unmount {}: {}", vault_id, e);

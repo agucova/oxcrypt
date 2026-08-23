@@ -9,7 +9,7 @@
 
 mod common;
 
-use common::{random_bytes, TestServer};
+use common::{TestServer, random_bytes};
 use reqwest::StatusCode;
 
 // ============================================================================
@@ -26,13 +26,13 @@ async fn test_etag_present_in_get_response() {
     assert!(resp.status().is_success());
 
     let etag = resp.headers().get("etag");
-    assert!(etag.is_some(), "ETag header should be present in GET response");
+    assert!(
+        etag.is_some(),
+        "ETag header should be present in GET response"
+    );
 
     let etag_value = etag.unwrap().to_str().unwrap();
-    assert!(
-        !etag_value.is_empty(),
-        "ETag should not be empty"
-    );
+    assert!(!etag_value.is_empty(), "ETag should not be empty");
 }
 
 #[tokio::test]
@@ -113,17 +113,16 @@ async fn test_etag_changes_after_size_change() {
         .unwrap()
         .to_string();
 
-    assert_ne!(
-        etag1, etag2,
-        "ETag should change when file size changes"
-    );
+    assert_ne!(etag1, etag2, "ETag should change when file size changes");
 }
 
 #[tokio::test]
 async fn test_etag_format_consistent() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/stable.txt", b"unchanged content".to_vec()).await;
+    server
+        .put_ok("/stable.txt", b"unchanged content".to_vec())
+        .await;
 
     // Get ETag twice - verify format is consistent even if timestamp portion varies
     let resp1 = server.get("/stable.txt").await;
@@ -177,7 +176,9 @@ async fn test_etag_format_consistent() {
 async fn test_if_none_match_with_wildcard_returns_304() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/cached.txt", b"cacheable content".to_vec()).await;
+    server
+        .put_ok("/cached.txt", b"cacheable content".to_vec())
+        .await;
 
     // Use wildcard * which should match any ETag
     // Note: Individual ETag matching is unreliable because dav-server includes
@@ -192,10 +193,7 @@ async fn test_if_none_match_with_wildcard_returns_304() {
 
     // Body should be empty for 304
     let body = resp.bytes().await.unwrap();
-    assert!(
-        body.is_empty(),
-        "304 response should have empty body"
-    );
+    assert!(body.is_empty(), "304 response should have empty body");
 }
 
 #[tokio::test]
@@ -237,7 +235,9 @@ async fn test_if_none_match_with_wrong_etag() {
     server.put_ok("/file.txt", b"content".to_vec()).await;
 
     // Request with non-matching ETag
-    let resp = server.get_if_none_match("/file.txt", "\"wrong-etag\"").await;
+    let resp = server
+        .get_if_none_match("/file.txt", "\"wrong-etag\"")
+        .await;
 
     assert_eq!(
         resp.status(),
@@ -399,8 +399,5 @@ async fn test_different_files_have_different_etags() {
         .unwrap()
         .to_string();
 
-    assert_ne!(
-        etag1, etag2,
-        "Different files should have different ETags"
-    );
+    assert_ne!(etag1, etag2, "Different files should have different ETags");
 }

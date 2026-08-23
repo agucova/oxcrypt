@@ -454,8 +454,8 @@ impl StructuralOp {
             | StructuralOp::Rmdir { parent, .. }
             | StructuralOp::Mkdir { parent, .. }
             | StructuralOp::Create { parent, .. }
-            | StructuralOp::Symlink { parent, .. } => *parent,
-            StructuralOp::Rename { parent, .. } => *parent,
+            | StructuralOp::Symlink { parent, .. }
+            | StructuralOp::Rename { parent, .. } => *parent,
             StructuralOp::Setattr { ino, .. } | StructuralOp::Link { ino, .. } => *ino,
         }
     }

@@ -91,7 +91,7 @@ impl MountHandle for FuseMountHandle {
     fn scheduler_stats(&self) -> Option<SchedulerStatsSnapshot> {
         self.scheduler_collector
             .as_ref()
-            .map(|c| c.to_mount_snapshot())
+            .map(SchedulerStatsCollector::to_mount_snapshot)
     }
 
     fn unmount(mut self: Box<Self>) -> Result<(), MountError> {

@@ -43,9 +43,7 @@ struct VaultInfo {
 
 #[instrument(level = "info", name = "cmd::info", skip_all, fields(vault = %vault_path.display()))]
 pub fn execute(vault_path: &Path, claims: &VaultConfigurationClaims, args: &Args) -> Result<()> {
-    let cipher_str = claims
-        .cipher_combo()
-        .map_or("Unknown", |c| c.as_str());
+    let cipher_str = claims.cipher_combo().map_or("Unknown", |c| c.as_str());
 
     if args.json {
         let info = VaultInfo {

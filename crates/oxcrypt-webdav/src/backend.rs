@@ -4,7 +4,9 @@
 //! to provide WebDAV-based mounting as an alternative to FUSE and FSKit.
 
 use crate::filesystem::CryptomatorWebDav;
-use crate::server::{auto_mount_macos, force_unmount_macos, unmount_macos, ServerConfig, WebDavServer};
+use crate::server::{
+    ServerConfig, WebDavServer, auto_mount_macos, force_unmount_macos, unmount_macos,
+};
 use oxcrypt_mount::{BackendType, MountBackend, MountError, MountHandle, VaultStats};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -126,13 +128,13 @@ impl MountBackend for WebDavBackend {
 
         // Start the server
         let config = self.config.clone();
-        let server = runtime.block_on(async {
-            WebDavServer::start(fs, config).await
-        }).map_err(|e| {
-            MountError::Mount(std::io::Error::other(format!(
-                "Failed to start WebDAV server: {e}"
-            )))
-        })?;
+        let server = runtime
+            .block_on(async { WebDavServer::start(fs, config).await })
+            .map_err(|e| {
+                MountError::Mount(std::io::Error::other(format!(
+                    "Failed to start WebDAV server: {e}"
+                )))
+            })?;
 
         let url = server.url();
         info!(url = %url, "WebDAV server started");
@@ -214,7 +216,9 @@ impl MountHandle for WebDavMountHandle {
         info!(url = %self.url, "Unmounting WebDAV");
 
         // Unmount from macOS if we auto-mounted
-        if self.auto_mounted && let Err(e) = unmount_macos(&self.mountpoint) {
+        if self.auto_mounted
+            && let Err(e) = unmount_macos(&self.mountpoint)
+        {
             warn!(error = %e, "Failed to unmount from macOS");
         }
 
@@ -234,9 +238,10 @@ impl MountHandle for WebDavMountHandle {
 
         // Force unmount using OS tools if we auto-mounted
         if self.auto_mounted
-            && let Err(e) = force_unmount_macos(&self.mountpoint) {
-                warn!(error = %e, "Force unmount failed");
-            }
+            && let Err(e) = force_unmount_macos(&self.mountpoint)
+        {
+            warn!(error = %e, "Force unmount failed");
+        }
 
         // Stop the server
         if let (Some(server), Some(runtime)) = (self.server.take(), self.runtime.take()) {

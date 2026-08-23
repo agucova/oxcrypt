@@ -9,8 +9,8 @@
 mod common;
 
 use common::{
-    assert_file_content, assert_not_found, chunk_minus_one, chunk_plus_one, multi_chunk_content,
-    one_chunk_content, random_bytes, sha256, TestServer, CHUNK_SIZE,
+    CHUNK_SIZE, TestServer, assert_file_content, assert_not_found, chunk_minus_one, chunk_plus_one,
+    multi_chunk_content, one_chunk_content, random_bytes, sha256,
 };
 use reqwest::StatusCode;
 
@@ -255,7 +255,9 @@ async fn test_mkcol_then_put_file_inside() {
     let server = TestServer::with_temp_vault().await;
 
     server.mkcol_ok("/mydir").await;
-    server.put_ok("/mydir/file.txt", b"inside dir".to_vec()).await;
+    server
+        .put_ok("/mydir/file.txt", b"inside dir".to_vec())
+        .await;
 
     assert_file_content(&server, "/mydir/file.txt", b"inside dir").await;
 }
@@ -287,7 +289,9 @@ async fn test_rmdir_nonempty_should_fail() {
     let server = TestServer::with_temp_vault().await;
 
     server.mkcol_ok("/nonempty").await;
-    server.put_ok("/nonempty/file.txt", b"content".to_vec()).await;
+    server
+        .put_ok("/nonempty/file.txt", b"content".to_vec())
+        .await;
 
     // Deleting non-empty directory should fail
     // Note: Some WebDAV implementations allow recursive delete
@@ -315,7 +319,9 @@ async fn test_put_get_in_subdirectory() {
     let server = TestServer::with_temp_vault().await;
 
     server.mkcol_ok("/subdir").await;
-    server.put_ok("/subdir/nested.txt", b"nested content".to_vec()).await;
+    server
+        .put_ok("/subdir/nested.txt", b"nested content".to_vec())
+        .await;
 
     assert_file_content(&server, "/subdir/nested.txt", b"nested content").await;
 }
@@ -329,7 +335,9 @@ async fn test_deep_directory_structure() {
     server.mkcol_ok("/a/b").await;
     server.mkcol_ok("/a/b/c").await;
 
-    server.put_ok("/a/b/c/deep.txt", b"deep file".to_vec()).await;
+    server
+        .put_ok("/a/b/c/deep.txt", b"deep file".to_vec())
+        .await;
 
     assert_file_content(&server, "/a/b/c/deep.txt", b"deep file").await;
 }

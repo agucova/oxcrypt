@@ -579,7 +579,7 @@ impl VaultFileReader {
     /// Reads and decrypts the file header to extract the content key.
     /// The file handle is kept open for subsequent read operations.
     ///
-    /// For SIV_CTRMAC vaults, use [`open_with_cipher`] instead.
+    /// For SIV_CTRMAC vaults, use [`Self::open_with_cipher`] instead.
     #[instrument(level = "debug", skip(master_key), fields(path = %path.as_ref().display()))]
     pub async fn open(
         path: impl AsRef<Path>,

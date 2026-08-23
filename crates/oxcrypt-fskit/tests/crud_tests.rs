@@ -6,8 +6,8 @@
 mod common;
 
 use common::{
-    assert_bytes_equal, chunk_minus_one, chunk_plus_one, multi_chunk_content, one_chunk_content,
-    random_bytes, sha256, TestFilesystem, CHUNK_SIZE,
+    CHUNK_SIZE, TestFilesystem, assert_bytes_equal, chunk_minus_one, chunk_plus_one,
+    multi_chunk_content, one_chunk_content, random_bytes, sha256,
 };
 
 // ============================================================================
@@ -96,7 +96,9 @@ fn test_write_and_read_chunk_minus_one() {
     let content = chunk_minus_one();
     assert_eq!(content.len(), CHUNK_SIZE - 1);
 
-    let item_id = fs.write_new_file(root, "chunk_minus.bin", &content).unwrap();
+    let item_id = fs
+        .write_new_file(root, "chunk_minus.bin", &content)
+        .unwrap();
     let read_content = fs.read_entire_file(item_id).unwrap();
     assert_bytes_equal(&read_content, &content, "chunk-1 content");
 }
@@ -122,7 +124,9 @@ fn test_write_and_read_multi_chunk() {
     let content = multi_chunk_content(3);
     assert_eq!(content.len(), CHUNK_SIZE * 3);
 
-    let item_id = fs.write_new_file(root, "multi_chunk.bin", &content).unwrap();
+    let item_id = fs
+        .write_new_file(root, "multi_chunk.bin", &content)
+        .unwrap();
     let read_content = fs.read_entire_file(item_id).unwrap();
     assert_bytes_equal(&read_content, &content, "multi-chunk content");
 }
@@ -199,7 +203,9 @@ fn test_overwrite_middle_of_file() {
     let root = fs.root_id();
 
     // Write 10 A's: "AAAAAAAAAA"
-    let item_id = fs.write_new_file(root, "overwrite.txt", b"AAAAAAAAAA").unwrap();
+    let item_id = fs
+        .write_new_file(root, "overwrite.txt", b"AAAAAAAAAA")
+        .unwrap();
 
     // Overwrite 3 bytes at offset 3 with "BBB"
     // Position: 0 1 2 3 4 5 6 7 8 9
@@ -383,7 +389,9 @@ fn test_remove_symlink() {
     let fs = TestFilesystem::new();
     let root = fs.root_id();
 
-    let attrs = fs.create_symlink(root, "link_to_delete", "/target").unwrap();
+    let attrs = fs
+        .create_symlink(root, "link_to_delete", "/target")
+        .unwrap();
     let item_id = attrs.attr_item_id();
 
     fs.remove(root, "link_to_delete", item_id).unwrap();
@@ -422,7 +430,8 @@ fn test_rename_directory() {
     let attrs = fs.create_directory(root, "old_dir").unwrap();
     let item_id = attrs.attr_item_id();
 
-    fs.rename(root, "old_dir", root, "new_dir", item_id).unwrap();
+    fs.rename(root, "old_dir", root, "new_dir", item_id)
+        .unwrap();
 
     assert!(!fs.exists(root, "old_dir"));
     assert!(fs.exists(root, "new_dir"));

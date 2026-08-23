@@ -3,7 +3,7 @@
 //! Provides a native menu bar with standard macOS menus (File, Edit, Vault, Window, Help).
 //! Uses Dioxus's built-in menu support via `window().set_menu()`.
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use dioxus::desktop::muda::{
     AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu,
     accelerator::{Accelerator, Code, Modifiers},
@@ -292,12 +292,8 @@ fn build_vault_menu() -> Submenu {
     let _ = vault_menu.append(&PredefinedMenuItem::separator());
 
     // Change Password
-    let change_password = MenuItem::with_id(
-        ids::VAULT_CHANGE_PASSWORD,
-        "Change Password...",
-        true,
-        None,
-    );
+    let change_password =
+        MenuItem::with_id(ids::VAULT_CHANGE_PASSWORD, "Change Password...", true, None);
     let _ = vault_menu.append(&change_password);
 
     // Change Backend
@@ -363,12 +359,7 @@ fn build_help_menu() -> Submenu {
     let help_menu = Submenu::new("Help", true);
 
     // Documentation
-    let docs = MenuItem::with_id(
-        ids::HELP_DOCUMENTATION,
-        "Oxcrypt Documentation",
-        true,
-        None,
-    );
+    let docs = MenuItem::with_id(ids::HELP_DOCUMENTATION, "Oxcrypt Documentation", true, None);
     let _ = help_menu.append(&docs);
 
     let _ = help_menu.append(&PredefinedMenuItem::separator());

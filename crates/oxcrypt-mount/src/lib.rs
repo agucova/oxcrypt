@@ -86,7 +86,6 @@ mod backend;
 pub mod bounded_pool;
 mod cleanup;
 pub mod daemon;
-pub mod signal;
 mod error_category;
 mod force_unmount;
 mod handle_table;
@@ -94,6 +93,7 @@ mod mount_markers;
 mod mount_utils;
 pub mod path_mapper;
 mod process_detection;
+pub mod signal;
 pub mod stale_detection;
 pub mod stats;
 mod timeout_fs;
@@ -107,53 +107,56 @@ pub mod moka_cache;
 
 // Backend abstraction exports
 pub use backend::{
-    first_available_backend, list_backend_info, safe_sync, select_backend, BackendInfo,
-    BackendType, MountBackend, MountError, MountHandle, MountOptions,
+    BackendInfo, BackendType, MountBackend, MountError, MountHandle, MountOptions,
+    first_available_backend, list_backend_info, safe_sync, select_backend,
 };
 pub use mount_utils::{
-    find_available_mountpoint, is_on_fuse_mount, is_path_mounted, is_under_fuse_mount,
-    normalize_mount_path, MountPointError, MountPointStatus,
+    MountPointError, MountPointStatus, find_available_mountpoint, is_on_fuse_mount,
+    is_path_mounted, is_under_fuse_mount, normalize_mount_path,
 };
 // Deprecated probing functions (kept for backward compatibility)
 #[allow(deprecated)]
 pub use mount_utils::{
-    check_mountpoint_status, is_directory_readable, is_path_accessible, DEFAULT_ACCESS_TIMEOUT,
+    DEFAULT_ACCESS_TIMEOUT, check_mountpoint_status, is_directory_readable, is_path_accessible,
 };
-pub use process_detection::{find_processes_using_mount, ProcessInfo};
-pub use timeout_fs::{TimeoutFs, DEFAULT_FS_TIMEOUT};
+pub use process_detection::{ProcessInfo, find_processes_using_mount};
+pub use timeout_fs::{DEFAULT_FS_TIMEOUT, TimeoutFs};
 
 // Stale mount cleanup exports
 pub use cleanup::{
-    cleanup_stale_mounts, cleanup_test_mounts, CleanupAction, CleanupOptions, CleanupResult,
-    TrackedMountInfo,
+    CleanupAction, CleanupOptions, CleanupResult, TrackedMountInfo, cleanup_stale_mounts,
+    cleanup_test_mounts,
 };
 pub use force_unmount::{force_unmount, lazy_unmount};
 pub use mount_markers::{
-    find_fuse_mounts, find_our_mounts, get_system_mounts_detailed, is_fuse_fstype, is_our_mount,
-    SystemMount,
+    SystemMount, find_fuse_mounts, find_our_mounts, get_system_mounts_detailed, is_fuse_fstype,
+    is_our_mount,
 };
 pub use stale_detection::{
-    check_mount_status, find_orphaned_mounts, is_process_alive, MountStatus, StaleReason,
-    TrackedMount,
+    MountStatus, StaleReason, TrackedMount, check_mount_status, find_orphaned_mounts,
+    is_process_alive,
 };
 // Deprecated function (kept for backward compatibility)
 #[allow(deprecated)]
 pub use stale_detection::canonicalize_with_timeout;
 
 // Implementation utility exports
-pub use error_category::{io_error_to_errno, VaultErrorCategory};
+pub use error_category::{VaultErrorCategory, io_error_to_errno};
 pub use handle_table::HandleTable;
-pub use stats::{ActivityStatus, CacheStats, SchedulerStatsSnapshot, VaultStats, VaultStatsSnapshot, format_bytes};
 pub use moka_cache::{
-    CacheHealth, CacheHealthThresholds, CacheWarning, CachedEntry, NegativeEntry,
-    DEFAULT_NEGATIVE_TTL, DEFAULT_TTL, LOCAL_NEGATIVE_TTL, LOCAL_TTL,
+    CacheHealth, CacheHealthThresholds, CacheWarning, CachedEntry, DEFAULT_NEGATIVE_TTL,
+    DEFAULT_TTL, LOCAL_NEGATIVE_TTL, LOCAL_TTL, NegativeEntry,
+};
+pub use stats::{
+    ActivityStatus, CacheStats, SchedulerStatsSnapshot, VaultStats, VaultStatsSnapshot,
+    format_bytes,
 };
 pub use write_buffer::WriteBuffer;
 
 // Bounded thread pool for timeout-wrapped operations
 pub use bounded_pool::{
-    get_blocked_thread_diagnostics, reset_blocked_count, BlockedThreadDiagnostics, BoundedFsPool,
-    MAX_LEAKED_THREADS,
+    BlockedThreadDiagnostics, BoundedFsPool, MAX_LEAKED_THREADS, get_blocked_thread_diagnostics,
+    reset_blocked_count,
 };
 
 /// Testing utilities for mount backend integration tests.

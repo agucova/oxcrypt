@@ -143,8 +143,7 @@ impl SchedulerShared {
     pub fn has_pending_writes(&self, ino: u64) -> bool {
         self.pending_writes_by_file
             .get(&ino)
-            .map(|c| c.load(Ordering::Acquire) > 0)
-            .unwrap_or(false)
+            .is_some_and(|c| c.load(Ordering::Acquire) > 0)
     }
 
     /// Wait for pending writes to complete up to a timeout.
@@ -153,9 +152,8 @@ impl SchedulerShared {
         let (lock, condvar) = &*self.writes_complete_notify;
 
         loop {
-            let remaining = match deadline.checked_duration_since(Instant::now()) {
-                Some(r) => r,
-                None => return false,
+            let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+                return false;
             };
 
             if !self.has_pending_writes(ino) {
@@ -172,8 +170,7 @@ impl SchedulerShared {
         let file_bytes = self
             .write_bytes_by_file
             .remove(&ino)
-            .map(|(_, counter)| counter.load(Ordering::Acquire))
-            .unwrap_or(0);
+            .map_or(0, |(_, counter)| counter.load(Ordering::Acquire));
 
         if file_bytes > 0 {
             self.write_bytes_global
@@ -370,7 +367,8 @@ impl SchedulerStatsCollector {
             executor_jobs_failed: snapshot.executor_jobs_failed,
             executor_jobs_rejected: snapshot.executor_jobs_rejected,
             executor_queue_depth: snapshot.executor_queue_depth,
-            executor_avg_time_us: snapshot.executor_avg_time.as_micros() as u64,
+            executor_avg_time_us: u64::try_from(snapshot.executor_avg_time.as_micros())
+                .unwrap_or(u64::MAX),
             read_cache_hits: snapshot.cache_hits,
             read_cache_misses: snapshot.cache_misses,
             read_cache_hit_ratio: snapshot.cache_hit_ratio,
@@ -945,10 +943,10 @@ impl FuseScheduler {
         fh: u64,
         reader: Box<oxcrypt_core::fs::streaming::VaultFileReaderSync>,
     ) {
-        if let Some(mut handle) = self.handle_table.get_mut(&fh) {
-            if matches!(*handle, FuseHandle::ReaderLoaned) {
-                *handle = FuseHandle::Reader(reader);
-            }
+        if let Some(mut handle) = self.handle_table.get_mut(&fh)
+            && matches!(*handle, FuseHandle::ReaderLoaned)
+        {
+            *handle = FuseHandle::Reader(reader);
         }
     }
 
@@ -1182,8 +1180,7 @@ impl FuseScheduler {
             op_name = self
                 .pending_structural
                 .get(&request_id)
-                .map(|p| p.op.name())
-                .unwrap_or("unknown"),
+                .map_or("unknown", |p| p.op.name()),
             ?lane,
             "Structural request enqueued to lane queue"
         );
@@ -1236,8 +1233,7 @@ impl FuseScheduler {
         while self
             .pending_writes_by_file
             .get(&ino)
-            .map(|c| c.load(Ordering::Acquire) > 0)
-            .unwrap_or(false)
+            .is_some_and(|c| c.load(Ordering::Acquire) > 0)
         {
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
@@ -1258,8 +1254,7 @@ impl FuseScheduler {
     pub fn has_pending_writes(&self, ino: u64) -> bool {
         self.pending_writes_by_file
             .get(&ino)
-            .map(|c| c.load(Ordering::Acquire) > 0)
-            .unwrap_or(false)
+            .is_some_and(|c| c.load(Ordering::Acquire) > 0)
     }
 
     /// Check if a write of the given size would exceed the budget.
@@ -1271,6 +1266,8 @@ impl FuseScheduler {
     ///
     /// * `ino` - Inode of the file being written to
     /// * `size` - Number of bytes to be written
+    // The error carries no information: callers only need to know whether to trigger auto-flush.
+    #[allow(clippy::result_unit_err)]
     pub fn check_write_budget(&self, ino: u64, size: u64) -> Result<(), ()> {
         // Check global budget
         let current_global = self.write_bytes_global.load(Ordering::Acquire);
@@ -1289,8 +1286,7 @@ impl FuseScheduler {
         let current_file = self
             .write_bytes_by_file
             .get(&ino)
-            .map(|c| c.load(Ordering::Acquire))
-            .unwrap_or(0);
+            .map_or(0, |c| c.load(Ordering::Acquire));
         if current_file.saturating_add(size) > self.config.write_budget_per_file {
             debug!(
                 ino,
@@ -1347,8 +1343,7 @@ impl FuseScheduler {
         let file_bytes = self
             .write_bytes_by_file
             .remove(&ino)
-            .map(|(_, counter)| counter.load(Ordering::Acquire))
-            .unwrap_or(0);
+            .map_or(0, |(_, counter)| counter.load(Ordering::Acquire));
 
         // Subtract from global counter (only what was actually tracked)
         if file_bytes > 0 {
@@ -1368,8 +1363,7 @@ impl FuseScheduler {
     pub fn file_write_bytes(&self, ino: u64) -> u64 {
         self.write_bytes_by_file
             .get(&ino)
-            .map(|c| c.load(Ordering::Relaxed))
-            .unwrap_or(0)
+            .map_or(0, |c| c.load(Ordering::Relaxed))
     }
 
     /// Invalidate all cached read data for an inode.
@@ -1608,13 +1602,13 @@ fn dispatcher_loop(
                     stats.record_timeout();
                     // Decrement pending writes counter for barrier semantics
                     // and clean up entry if it reaches zero to prevent unbounded DashMap growth
-                    if let Some(counter) = pending_writes_by_file.get(&ino_out) {
-                        if counter.fetch_sub(1, Ordering::Release) == 1 {
-                            // Was 1, now 0 - try to remove entry to prevent memory leak
-                            // Use remove_if to handle race with concurrent inserts
-                            pending_writes_by_file
-                                .remove_if(&ino_out, |_, c| c.load(Ordering::Acquire) == 0);
-                        }
+                    if let Some(counter) = pending_writes_by_file.get(&ino_out)
+                        && counter.fetch_sub(1, Ordering::Release) == 1
+                    {
+                        // Was 1, now 0 - try to remove entry to prevent memory leak
+                        // Use remove_if to handle race with concurrent inserts
+                        pending_writes_by_file
+                            .remove_if(&ino_out, |_, c| c.load(Ordering::Acquire) == 0);
                     }
                     // Notify any waiters that a write completed
                     writes_complete_notify.1.notify_all();
@@ -1623,31 +1617,32 @@ fn dispatcher_loop(
             }
 
             // Check pending structural ops
-            if let Some(mut pending) = pending_structural.get_mut(&request_id) {
-                if pending.generation == generation && pending.state.claim_reply() {
-                    let lane_index = pending.lane as usize;
-                    let dispatched = pending.in_flight.load(Ordering::Acquire);
-                    let affected_inodes = pending.op.affected_inodes();
-                    let reply = pending.reply.take();
-                    warn!(
-                        ?request_id,
-                        op = pending.op.name(),
-                        "Structural request timed out"
-                    );
-                    if let Some(reply) = reply {
-                        reply.error(libc::ETIMEDOUT);
-                    }
-                    // Decrement in-flight counter for this lane only if dispatched
-                    if dispatched {
-                        stats.dec_in_flight(lane_index);
-                        pending.in_flight.store(false, Ordering::Release);
-                    }
-                    drop(pending);
-                    stats.record_timeout();
-                    // Release per-file ordering for all affected inodes
-                    for ino in affected_inodes {
-                        per_file.complete(ino, Some(libc::ETIMEDOUT));
-                    }
+            if let Some(mut pending) = pending_structural.get_mut(&request_id)
+                && pending.generation == generation
+                && pending.state.claim_reply()
+            {
+                let lane_index = pending.lane as usize;
+                let dispatched = pending.in_flight.load(Ordering::Acquire);
+                let affected_inodes = pending.op.affected_inodes();
+                let reply = pending.reply.take();
+                warn!(
+                    ?request_id,
+                    op = pending.op.name(),
+                    "Structural request timed out"
+                );
+                if let Some(reply) = reply {
+                    reply.error(libc::ETIMEDOUT);
+                }
+                // Decrement in-flight counter for this lane only if dispatched
+                if dispatched {
+                    stats.dec_in_flight(lane_index);
+                    pending.in_flight.store(false, Ordering::Release);
+                }
+                drop(pending);
+                stats.record_timeout();
+                // Release per-file ordering for all affected inodes
+                for ino in affected_inodes {
+                    per_file.complete(ino, Some(libc::ETIMEDOUT));
                 }
             }
             // If not found in any map, entry is stale (already completed)
@@ -1659,8 +1654,7 @@ fn dispatcher_loop(
             let is_ready = {
                 let job = &mut blocked_structural_jobs[i].1;
                 job.waiters.iter_mut().all(|rx| match rx.try_recv() {
-                    Ok(_) => true,
-                    Err(oneshot::error::TryRecvError::Closed) => true,
+                    Ok(()) | Err(oneshot::error::TryRecvError::Closed) => true,
                     Err(oneshot::error::TryRecvError::Empty) => false,
                 })
             };
@@ -1698,7 +1692,10 @@ fn dispatcher_loop(
             // Calculate free executor slots based on configured worker count and in-flight work.
             // This avoids the previous hardcoded 16-thread assumption.
             let executor_capacity = executor.io_threads();
-            let in_flight_total: usize = in_flight_counts.iter().map(|v| *v as usize).sum();
+            let in_flight_total: usize = in_flight_counts
+                .iter()
+                .map(|v| usize::try_from(*v).unwrap_or(usize::MAX))
+                .sum();
             let estimated_free_slots = executor_capacity.saturating_sub(in_flight_total);
 
             // Try to dispatch jobs from lane queues using fairness policy
@@ -1882,13 +1879,13 @@ fn dispatcher_loop(
                     }
                     // Decrement pending writes counter for barrier semantics
                     // and clean up entry if it reaches zero to prevent unbounded DashMap growth
-                    if let Some(counter) = pending_writes_by_file.get(&ino_out) {
-                        if counter.fetch_sub(1, Ordering::Release) == 1 {
-                            // Was 1, now 0 - try to remove entry to prevent memory leak
-                            // Use remove_if to handle race with concurrent inserts
-                            pending_writes_by_file
-                                .remove_if(&ino_out, |_, c| c.load(Ordering::Acquire) == 0);
-                        }
+                    if let Some(counter) = pending_writes_by_file.get(&ino_out)
+                        && counter.fetch_sub(1, Ordering::Release) == 1
+                    {
+                        // Was 1, now 0 - try to remove entry to prevent memory leak
+                        // Use remove_if to handle race with concurrent inserts
+                        pending_writes_by_file
+                            .remove_if(&ino_out, |_, c| c.load(Ordering::Acquire) == 0);
                     }
                     // Notify any waiters that a write completed
                     writes_complete_notify.1.notify_all();
@@ -1960,7 +1957,6 @@ fn dispatcher_loop(
                         stats.dec_in_flight(lane_index);
                     }
                 }
-                continue;
             }
         }
 
@@ -2006,8 +2002,10 @@ fn dispatcher_loop(
                         }
                     }
                     Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
-                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_))
-                    | Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                    Err(
+                        tokio::sync::broadcast::error::TryRecvError::Lagged(_)
+                        | tokio::sync::broadcast::error::TryRecvError::Closed,
+                    ) => {
                         let reply = pending.reply.take();
                         let state = Arc::clone(&pending.state);
                         should_remove = true;
@@ -2085,25 +2083,25 @@ fn dispatcher_loop(
         match queued.data {
             QueuedJob::Read(job) => {
                 // Restore reader to handle table so file can still be used
-                if let Some(mut handle) = handle_table.get_mut(&job.fh) {
-                    if matches!(*handle, FuseHandle::ReaderLoaned) {
-                        *handle = FuseHandle::Reader(job.reader);
-                    }
+                if let Some(mut handle) = handle_table.get_mut(&job.fh)
+                    && matches!(*handle, FuseHandle::ReaderLoaned)
+                {
+                    *handle = FuseHandle::Reader(job.reader);
                 }
                 warn!(request_id = ?queued.id, fh = job.fh, "Dropped queued read job on shutdown");
             }
             QueuedJob::CopyRange(job) => {
                 // Restore reader to handle table
-                if let Some(mut handle) = handle_table.get_mut(&job.fh_in) {
-                    if matches!(*handle, FuseHandle::ReaderLoaned) {
-                        *handle = FuseHandle::Reader(job.reader);
-                    }
+                if let Some(mut handle) = handle_table.get_mut(&job.fh_in)
+                    && matches!(*handle, FuseHandle::ReaderLoaned)
+                {
+                    *handle = FuseHandle::Reader(job.reader);
                 }
-                if let Some(counter) = pending_writes_by_file.get(&job.ino_out) {
-                    if counter.fetch_sub(1, Ordering::Release) == 1 {
-                        pending_writes_by_file
-                            .remove_if(&job.ino_out, |_, c| c.load(Ordering::Acquire) == 0);
-                    }
+                if let Some(counter) = pending_writes_by_file.get(&job.ino_out)
+                    && counter.fetch_sub(1, Ordering::Release) == 1
+                {
+                    pending_writes_by_file
+                        .remove_if(&job.ino_out, |_, c| c.load(Ordering::Acquire) == 0);
                 }
                 writes_complete_notify.1.notify_all();
                 warn!(request_id = ?queued.id, "Dropped queued copy_file_range job on shutdown");
@@ -2129,44 +2127,44 @@ fn dispatcher_loop(
     // double-reply. The handle will be in ReaderLoaned state until the file is closed.
     let pending_read_keys: Vec<_> = pending_reads.iter().map(|e| *e.key()).collect();
     for request_id in pending_read_keys {
-        if let Some((_, mut pending)) = pending_reads.remove(&request_id) {
-            if pending.state.claim_reply() {
-                warn!(?request_id, "Replying ESHUTDOWN to pending read");
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::ESHUTDOWN);
-                }
+        if let Some((_, mut pending)) = pending_reads.remove(&request_id)
+            && pending.state.claim_reply()
+        {
+            warn!(?request_id, "Replying ESHUTDOWN to pending read");
+            if let Some(reply) = pending.reply.take() {
+                reply.error(libc::ESHUTDOWN);
             }
         }
     }
 
     let pending_waiter_keys: Vec<_> = pending_read_waiters.iter().map(|e| *e.key()).collect();
     for request_id in pending_waiter_keys {
-        if let Some((_, mut pending)) = pending_read_waiters.remove(&request_id) {
-            if pending.state.claim_reply() {
-                warn!(?request_id, "Replying ESHUTDOWN to pending read waiter");
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::ESHUTDOWN);
-                }
+        if let Some((_, mut pending)) = pending_read_waiters.remove(&request_id)
+            && pending.state.claim_reply()
+        {
+            warn!(?request_id, "Replying ESHUTDOWN to pending read waiter");
+            if let Some(reply) = pending.reply.take() {
+                reply.error(libc::ESHUTDOWN);
             }
         }
     }
 
     let pending_copy_keys: Vec<_> = pending_copy_ranges.iter().map(|e| *e.key()).collect();
     for request_id in pending_copy_keys {
-        if let Some((_, mut pending)) = pending_copy_ranges.remove(&request_id) {
-            if pending.state.claim_reply() {
-                warn!(?request_id, "Replying ESHUTDOWN to pending copy_file_range");
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::ESHUTDOWN);
-                }
-                if let Some(counter) = pending_writes_by_file.get(&pending.ino_out) {
-                    if counter.fetch_sub(1, Ordering::Release) == 1 {
-                        pending_writes_by_file
-                            .remove_if(&pending.ino_out, |_, c| c.load(Ordering::Acquire) == 0);
-                    }
-                }
-                writes_complete_notify.1.notify_all();
+        if let Some((_, mut pending)) = pending_copy_ranges.remove(&request_id)
+            && pending.state.claim_reply()
+        {
+            warn!(?request_id, "Replying ESHUTDOWN to pending copy_file_range");
+            if let Some(reply) = pending.reply.take() {
+                reply.error(libc::ESHUTDOWN);
             }
+            if let Some(counter) = pending_writes_by_file.get(&pending.ino_out)
+                && counter.fetch_sub(1, Ordering::Release) == 1
+            {
+                pending_writes_by_file
+                    .remove_if(&pending.ino_out, |_, c| c.load(Ordering::Acquire) == 0);
+            }
+            writes_complete_notify.1.notify_all();
         }
     }
 
@@ -2192,12 +2190,12 @@ fn dispatcher_loop(
 
     let pending_hazardous_keys: Vec<_> = pending_hazardous.iter().map(|e| *e.key()).collect();
     for request_id in pending_hazardous_keys {
-        if let Some((_, mut pending)) = pending_hazardous.remove(&request_id) {
-            if pending.state.claim_reply() {
-                warn!(?request_id, "Replying ESHUTDOWN to pending hazardous op");
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::ESHUTDOWN);
-                }
+        if let Some((_, mut pending)) = pending_hazardous.remove(&request_id)
+            && pending.state.claim_reply()
+        {
+            warn!(?request_id, "Replying ESHUTDOWN to pending hazardous op");
+            if let Some(reply) = pending.reply.take() {
+                reply.error(libc::ESHUTDOWN);
             }
         }
     }
@@ -2247,15 +2245,15 @@ fn dispatch_read_job(
         restore_reader(request_id, rejected_fh, reader, handle_table);
 
         // Get the pending read and reply with error
-        if let Some((_, mut pending)) = pending_reads.remove(&request_id) {
-            if pending.state.claim_reply() {
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::EAGAIN);
-                }
-                // Cancel single-flight if we were leader
-                if let Some(key) = pending.read_key {
-                    in_flight.cancel(&key);
-                }
+        if let Some((_, mut pending)) = pending_reads.remove(&request_id)
+            && pending.state.claim_reply()
+        {
+            if let Some(reply) = pending.reply.take() {
+                reply.error(libc::EAGAIN);
+            }
+            // Cancel single-flight if we were leader
+            if let Some(key) = pending.read_key {
+                in_flight.cancel(&key);
             }
         }
         return;
@@ -2325,17 +2323,17 @@ fn dispatch_copy_range_job(
 
         // Get the pending copy range and reply with error
         if let Some((_, mut pending)) = pending_copy_ranges.remove(&request_id) {
-            if pending.state.claim_reply() {
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::EAGAIN);
-                }
+            if pending.state.claim_reply()
+                && let Some(reply) = pending.reply.take()
+            {
+                reply.error(libc::EAGAIN);
             }
             // Decrement pending writes counter for barrier semantics
-            if let Some(counter) = pending_writes_by_file.get(&pending.ino_out) {
-                if counter.fetch_sub(1, Ordering::Release) == 1 {
-                    pending_writes_by_file
-                        .remove_if(&pending.ino_out, |_, c| c.load(Ordering::Acquire) == 0);
-                }
+            if let Some(counter) = pending_writes_by_file.get(&pending.ino_out)
+                && counter.fetch_sub(1, Ordering::Release) == 1
+            {
+                pending_writes_by_file
+                    .remove_if(&pending.ino_out, |_, c| c.load(Ordering::Acquire) == 0);
             }
             writes_complete_notify.1.notify_all();
         }
@@ -2473,6 +2471,8 @@ fn handle_read_completion(
 /// Handle completion of a copy_file_range request.
 ///
 /// Writes the read data to the destination buffer and replies with bytes written.
+// Threads the dispatcher's independent shared-state handles through; grouping them would add no clarity.
+#[allow(clippy::too_many_arguments)]
 fn handle_copy_range_completion(
     request_id: RequestId,
     result: Option<ExecutorResult>,
@@ -2721,12 +2721,11 @@ fn dispatch_hazardous_job(
 
     if let Err((e, _rejected_job)) = executor.try_submit(executor_job) {
         warn!(?request_id, "Executor rejected hazardous job: {}", e);
-        if let Some((_, mut pending)) = pending_hazardous.remove(&request_id) {
-            if pending.state.claim_reply() {
-                if let Some(reply) = pending.reply.take() {
-                    reply.error(libc::EAGAIN);
-                }
-            }
+        if let Some((_, mut pending)) = pending_hazardous.remove(&request_id)
+            && pending.state.claim_reply()
+            && let Some(reply) = pending.reply.take()
+        {
+            reply.error(libc::EAGAIN);
         }
         return;
     }
@@ -2948,11 +2947,7 @@ fn handle_hazardous_completion(
                 }
             },
         },
-        Some(_) => {
-            reply.error(libc::EIO);
-            stats.record_accept();
-        }
-        None => {
+        Some(_) | None => {
             reply.error(libc::EIO);
             stats.record_accept();
         }

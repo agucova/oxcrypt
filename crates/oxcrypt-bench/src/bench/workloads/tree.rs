@@ -34,11 +34,7 @@ const MIN_TREE_WALKS: usize = 2;
 const MIN_RANDOM_ACCESSES: usize = 5;
 
 /// Directory tree workload phases for progress reporting.
-const TREE_PHASES: &[&str] = &[
-    "First tree walk",
-    "Repeated walks",
-    "Random access",
-];
+const TREE_PHASES: &[&str] = &["First tree walk", "Repeated walks", "Random access"];
 
 /// Directory Tree Workload.
 ///
@@ -81,9 +77,12 @@ impl DirectoryTreeWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_tree_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_tree_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn tree_root(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -126,8 +125,8 @@ impl DirectoryTreeWorkload {
         Ok(stats)
     }
 
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_tree_recursive(&self, path: &Path, stats: &mut TreeStats) -> Result<()> {
         if path.is_dir() {
             stats.directories += 1;
@@ -160,7 +159,7 @@ impl DirectoryTreeWorkload {
         Ok(files)
     }
 
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn collect_files_recursive(&self, path: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         if path.is_dir() {
             for entry in fs::read_dir(path)? {
@@ -203,15 +202,21 @@ impl Benchmark for DirectoryTreeWorkload {
     fn parameters(&self) -> HashMap<String, String> {
         let mut params = HashMap::new();
         params.insert("depth".to_string(), self.tree_depth.to_string());
-        params.insert("dirs_per_level".to_string(), self.dirs_per_level.to_string());
+        params.insert(
+            "dirs_per_level".to_string(),
+            self.dirs_per_level.to_string(),
+        );
         params.insert("files_per_dir".to_string(), self.files_per_dir.to_string());
         params.insert("tree_walks".to_string(), self.tree_walks.to_string());
-        params.insert("random_accesses".to_string(), self.random_accesses.to_string());
+        params.insert(
+            "random_accesses".to_string(),
+            self.random_accesses.to_string(),
+        );
 
         // Calculate expected totals based on scaled values
         let mut total_dirs = 0;
         for d in 0..self.tree_depth {
-            #[allow(clippy::cast_possible_truncation)]  // tree_depth is small, bounded by MAX_DEPTH
+            #[allow(clippy::cast_possible_truncation)] // tree_depth is small, bounded by MAX_DEPTH
             let d_u32 = d as u32;
             total_dirs += self.dirs_per_level.pow(d_u32);
         }

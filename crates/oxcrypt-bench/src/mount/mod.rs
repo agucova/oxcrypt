@@ -89,8 +89,8 @@ mod fuse_stub {
 }
 #[cfg(test)]
 pub use fuse_stub::{FuseBackend, FuseMountHandle};
-pub use oxcrypt_webdav::WebDavBackend;
 pub use oxcrypt_nfs::NfsBackend;
+pub use oxcrypt_webdav::WebDavBackend;
 
 // FileProvider backend (macOS 13+ only)
 #[cfg(all(target_os = "macos", feature = "fileprovider"))]
@@ -237,7 +237,10 @@ pub fn backend_unavailable_reason(implementation: Implementation) -> Option<Stri
         #[cfg(all(target_os = "macos", feature = "fileprovider"))]
         Implementation::OxidizedFileProvider => fileprovider_backend().unavailable_reason(),
         #[cfg(not(all(target_os = "macos", feature = "fileprovider")))]
-        Implementation::OxidizedFileProvider => Some("FileProvider is only available on macOS 13+ (enable 'fileprovider' feature)".to_string()),
+        Implementation::OxidizedFileProvider => Some(
+            "FileProvider is only available on macOS 13+ (enable 'fileprovider' feature)"
+                .to_string(),
+        ),
         Implementation::OfficialCryptomator => None,
     }
 }
@@ -278,7 +281,9 @@ impl BenchMount {
     /// Get lock contention metrics if available.
     ///
     /// Returns `None` for backends that don't support lock metrics or for external mounts.
-    pub fn lock_metrics(&self) -> Option<std::sync::Arc<oxcrypt_core::vault::lock_metrics::LockMetrics>> {
+    pub fn lock_metrics(
+        &self,
+    ) -> Option<std::sync::Arc<oxcrypt_core::vault::lock_metrics::LockMetrics>> {
         self.handle.as_ref().and_then(|h| h.lock_metrics())
     }
 }
@@ -335,10 +340,7 @@ pub fn mount_implementation(
         }
         Implementation::OxidizedWebDav => {
             let backend = WebDavBackend::new();
-            tracing::debug!(
-                "Starting WebDAV mount at {}",
-                mount_point.display(),
-            );
+            tracing::debug!("Starting WebDAV mount at {}", mount_point.display(),);
             let handle = backend
                 .mount("bench", vault_path, password, mount_point)
                 .with_context(|| format!("Failed to mount WebDAV at {}", mount_point.display()))?;
@@ -356,7 +358,9 @@ pub fn mount_implementation(
                 match std::fs::read_dir(mount_point) {
                     Ok(_) => {
                         // Directory is readable but not a mount point - auto-mount failed
-                        tracing::error!("WebDAV auto-mount failed - directory readable but not a mount point");
+                        tracing::error!(
+                            "WebDAV auto-mount failed - directory readable but not a mount point"
+                        );
                         anyhow::bail!(
                             "WebDAV auto-mount failed at {}. The WebDAV server is running but macOS mount_webdav failed. \
                             You may need to mount manually via Finder (Cmd+K). Check system logs for details.",
@@ -400,10 +404,7 @@ pub fn mount_implementation(
             let handle = backend
                 .mount("bench", vault_path, password, mount_point)
                 .with_context(|| "Failed to mount FileProvider")?;
-            tracing::info!(
-                "FileProvider mounted at {}",
-                handle.mountpoint().display()
-            );
+            tracing::info!("FileProvider mounted at {}", handle.mountpoint().display());
             Ok(BenchMount {
                 handle: Some(handle),
                 external_mount_point: None,
@@ -412,7 +413,9 @@ pub fn mount_implementation(
         }
         #[cfg(not(all(target_os = "macos", feature = "fileprovider")))]
         Implementation::OxidizedFileProvider => {
-            anyhow::bail!("FileProvider is only available on macOS 13+ (enable 'fileprovider' feature)");
+            anyhow::bail!(
+                "FileProvider is only available on macOS 13+ (enable 'fileprovider' feature)"
+            );
         }
         Implementation::OfficialCryptomator => {
             // External mount - just validate it exists
@@ -444,8 +447,7 @@ pub fn ensure_mount_point(path: &Path) -> Result<PathBuf> {
     // This eliminates all mount table queries and sequential probing
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_millis());
 
     // Normalize path BEFORE adding timestamp to handle /tmp -> /private/tmp on macOS
     let normalized = normalize_mount_path(path);

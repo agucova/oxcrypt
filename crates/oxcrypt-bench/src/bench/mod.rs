@@ -1,20 +1,22 @@
 //! Benchmark definitions and execution.
 
-mod read;
-mod write;
-mod metadata;
 mod lifecycle;
+mod metadata;
+mod read;
 mod runner;
 mod suite;
 pub mod workloads;
+mod write;
 
-pub use read::{SequentialReadBenchmark, RandomReadBenchmark};
-pub use write::{SequentialWriteBenchmark, RandomWriteBenchmark};
-pub use metadata::{DirectoryListingBenchmark, MetadataBenchmark};
 pub use lifecycle::{FileCreationBenchmark, FileDeletionBenchmark};
+pub use metadata::{DirectoryListingBenchmark, MetadataBenchmark};
+pub use read::{RandomReadBenchmark, SequentialReadBenchmark};
 pub use runner::BenchmarkRunner;
 pub use suite::create_suite;
-pub use workloads::{create_workloads, create_workloads_filtered, create_workload_by_name, workload_names};
+pub use workloads::{
+    create_workload_by_name, create_workloads, create_workloads_filtered, workload_names,
+};
+pub use write::{RandomWriteBenchmark, SequentialWriteBenchmark};
 
 // Phase progress types for fine-grained workload progress reporting
 // (PhaseProgress and PhaseProgressCallback are defined below and re-exported)

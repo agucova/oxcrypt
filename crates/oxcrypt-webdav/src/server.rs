@@ -4,10 +4,10 @@
 //! and handles the server lifecycle (start, stop).
 
 use crate::filesystem::CryptomatorWebDav;
-use dav_server::{fakels::FakeLs, DavHandler};
+use dav_server::{DavHandler, fakels::FakeLs};
+use hyper::Request;
 use hyper::body::Incoming;
 use hyper::service::service_fn;
-use hyper::Request;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto;
 use std::convert::Infallible;
@@ -163,7 +163,7 @@ pub async fn auto_mount_macos(
     mountpoint: &std::path::Path,
 ) -> Result<(), std::io::Error> {
     use tokio::process::Command;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{Duration, timeout};
 
     debug!(url = %url, mountpoint = %mountpoint.display(), "Attempting auto-mount on macOS");
 
@@ -211,8 +211,7 @@ pub fn unmount_macos(mountpoint: &std::path::Path) -> Result<(), std::io::Error>
     debug!(mountpoint = %mountpoint.display(), "Unmounting on macOS");
 
     // Use shared force_unmount utility (has built-in timeouts and fallbacks)
-    oxcrypt_mount::force_unmount(mountpoint)
-        .map_err(|e| std::io::Error::other(e.to_string()))
+    oxcrypt_mount::force_unmount(mountpoint).map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 /// Force unmount a macOS WebDAV mount, even if busy.
@@ -221,8 +220,7 @@ pub fn force_unmount_macos(mountpoint: &std::path::Path) -> Result<(), std::io::
     debug!(mountpoint = %mountpoint.display(), "Force unmounting on macOS");
 
     // Use shared force_unmount utility (has built-in timeouts and fallbacks)
-    oxcrypt_mount::force_unmount(mountpoint)
-        .map_err(|e| std::io::Error::other(e.to_string()))
+    oxcrypt_mount::force_unmount(mountpoint).map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 /// Attempt to unmount on Linux (for manually mounted WebDAV shares).
@@ -231,8 +229,7 @@ pub fn unmount_macos(mountpoint: &std::path::Path) -> Result<(), std::io::Error>
     debug!(mountpoint = %mountpoint.display(), "Unmounting on Linux");
 
     // Use shared lazy_unmount utility (has built-in timeouts and fallbacks)
-    oxcrypt_mount::lazy_unmount(mountpoint)
-        .map_err(|e| std::io::Error::other(e.to_string()))
+    oxcrypt_mount::lazy_unmount(mountpoint).map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 /// Force unmount on Linux.
@@ -241,8 +238,7 @@ pub fn force_unmount_macos(mountpoint: &std::path::Path) -> Result<(), std::io::
     debug!(mountpoint = %mountpoint.display(), "Force unmounting on Linux");
 
     // Use shared lazy_unmount utility (has built-in timeouts and fallbacks)
-    oxcrypt_mount::lazy_unmount(mountpoint)
-        .map_err(|e| std::io::Error::other(e.to_string()))
+    oxcrypt_mount::lazy_unmount(mountpoint).map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(target_os = "linux")]

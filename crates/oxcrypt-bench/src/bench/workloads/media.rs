@@ -15,7 +15,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::assets::{AssetDownloader, manifest};
-use crate::bench::workloads::{copy_file_contents, WorkloadConfig};
+use crate::bench::workloads::{WorkloadConfig, copy_file_contents};
 use crate::bench::{Benchmark, PhaseProgress, PhaseProgressCallback};
 use crate::config::OperationType;
 use anyhow::{Context, Result};
@@ -84,8 +84,10 @@ impl MediaStreamingWorkload {
     pub fn new(config: WorkloadConfig) -> Self {
         let use_real_assets = config.real_assets;
         let media_file_size = config.scale_count(BASE_MEDIA_FILE_SIZE, MIN_MEDIA_FILE_SIZE);
-        let initial_buffer_size = config.scale_count(BASE_INITIAL_BUFFER_SIZE, MIN_INITIAL_BUFFER_SIZE);
-        let playback_read_total = config.scale_count(BASE_PLAYBACK_READ_TOTAL, MIN_PLAYBACK_READ_TOTAL);
+        let initial_buffer_size =
+            config.scale_count(BASE_INITIAL_BUFFER_SIZE, MIN_INITIAL_BUFFER_SIZE);
+        let playback_read_total =
+            config.scale_count(BASE_PLAYBACK_READ_TOTAL, MIN_PLAYBACK_READ_TOTAL);
         let num_seeks = config.scale_count(BASE_NUM_SEEKS, MIN_NUM_SEEKS);
         let seek_read_size = config.scale_count(BASE_SEEK_READ_SIZE, MIN_SEEK_READ_SIZE);
         let resume_read_size = config.scale_count(BASE_RESUME_READ_SIZE, MIN_RESUME_READ_SIZE);
@@ -103,9 +105,12 @@ impl MediaStreamingWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_media_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_media_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn media_path(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -113,7 +118,7 @@ impl MediaStreamingWorkload {
     }
 
     /// Download real video asset and return the local path.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn download_real_asset(&self) -> Result<PathBuf> {
         let downloader = AssetDownloader::new()?;
 
@@ -182,10 +187,7 @@ impl Benchmark for MediaStreamingWorkload {
             "initial_buffer".to_string(),
             format!("{}MB", self.initial_buffer_size / (1024 * 1024)),
         );
-        params.insert(
-            "chunk_size".to_string(),
-            format!("{}KB", CHUNK_SIZE / 1024),
-        );
+        params.insert("chunk_size".to_string(), format!("{}KB", CHUNK_SIZE / 1024));
         params.insert(
             "playback_read".to_string(),
             format!("{}MB", self.playback_read_total / (1024 * 1024)),
@@ -201,13 +203,18 @@ impl Benchmark for MediaStreamingWorkload {
         );
         params.insert(
             "asset_type".to_string(),
-            if self.use_real_assets { "real" } else { "synthetic" }.to_string(),
+            if self.use_real_assets {
+                "real"
+            } else {
+                "synthetic"
+            }
+            .to_string(),
         );
         params.insert("scale".to_string(), format!("{:.2}", self.config.scale));
         params
     }
 
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn setup(&self, mount_point: &Path, iteration: usize) -> Result<()> {
         // Create workload directory
         fs::create_dir_all(self.workload_dir(mount_point, iteration))?;
@@ -256,7 +263,9 @@ impl Benchmark for MediaStreamingWorkload {
         {
             let mut chunk_buffer = vec![0u8; CHUNK_SIZE];
             let mut total_read = self.initial_buffer_size;
-            let playback_target = self.playback_read_total.min(file_size.saturating_sub(self.initial_buffer_size));
+            let playback_target = self
+                .playback_read_total
+                .min(file_size.saturating_sub(self.initial_buffer_size));
 
             while total_read < self.initial_buffer_size + playback_target {
                 let n = file.read(&mut chunk_buffer)?;
@@ -370,10 +379,16 @@ impl Benchmark for MediaStreamingWorkload {
             file.read_exact(&mut buffer)?;
             std::hint::black_box(&buffer);
         }
-        report(0, Some(self.initial_buffer_size), Some(self.initial_buffer_size));
+        report(
+            0,
+            Some(self.initial_buffer_size),
+            Some(self.initial_buffer_size),
+        );
 
         // ===== Phase 2: Steady playback =====
-        let playback_target = self.playback_read_total.min(file_size.saturating_sub(self.initial_buffer_size));
+        let playback_target = self
+            .playback_read_total
+            .min(file_size.saturating_sub(self.initial_buffer_size));
         report(1, Some(0), Some(playback_target));
         {
             let mut chunk_buffer = vec![0u8; CHUNK_SIZE];

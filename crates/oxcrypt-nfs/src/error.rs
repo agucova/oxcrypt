@@ -171,9 +171,18 @@ mod tests {
 
     #[test]
     fn test_nfs_error_to_nfsstat() {
-        assert_nfsstat_eq!(nfsstat3::from(NfsError::InvalidHandle), nfsstat3::NFS3ERR_BADHANDLE);
-        assert_nfsstat_eq!(nfsstat3::from(NfsError::FileIdNotFound(42)), nfsstat3::NFS3ERR_STALE);
-        assert_nfsstat_eq!(nfsstat3::from(NfsError::NotDirectory), nfsstat3::NFS3ERR_NOTDIR);
+        assert_nfsstat_eq!(
+            nfsstat3::from(NfsError::InvalidHandle),
+            nfsstat3::NFS3ERR_BADHANDLE
+        );
+        assert_nfsstat_eq!(
+            nfsstat3::from(NfsError::FileIdNotFound(42)),
+            nfsstat3::NFS3ERR_STALE
+        );
+        assert_nfsstat_eq!(
+            nfsstat3::from(NfsError::NotDirectory),
+            nfsstat3::NFS3ERR_NOTDIR
+        );
         assert_nfsstat_eq!(nfsstat3::from(NfsError::NotFile), nfsstat3::NFS3ERR_ISDIR);
     }
 }

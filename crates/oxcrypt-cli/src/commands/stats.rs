@@ -7,7 +7,7 @@ use tracing::instrument;
 
 use crate::ipc;
 use crate::state::MountStateManager;
-use oxcrypt_mount::stats::{format_bytes, VaultStatsSnapshot};
+use oxcrypt_mount::stats::{VaultStatsSnapshot, format_bytes};
 
 #[derive(Args, Clone)]
 pub struct StatsArgs {
@@ -50,7 +50,9 @@ fn run_once(state_manager: &MountStateManager, args: &StatsArgs) -> Result<()> {
 
     // Filter to specific mountpoint if provided
     let mounts: Vec<_> = if let Some(mp) = &args.mountpoint {
-        state.mounts.into_iter()
+        state
+            .mounts
+            .into_iter()
             .filter(|m| &m.mountpoint == mp)
             .collect()
     } else {
@@ -73,7 +75,11 @@ fn run_once(state_manager: &MountStateManager, args: &StatsArgs) -> Result<()> {
             match ipc::get_stats(socket_path) {
                 Ok(s) => Some(s),
                 Err(e) => {
-                    tracing::debug!("Failed to get stats for {}: {}", mount.mountpoint.display(), e);
+                    tracing::debug!(
+                        "Failed to get stats for {}: {}",
+                        mount.mountpoint.display(),
+                        e
+                    );
                     None
                 }
             }
@@ -82,7 +88,10 @@ fn run_once(state_manager: &MountStateManager, args: &StatsArgs) -> Result<()> {
         };
 
         results.push((
-            mount.vault_path.file_name().map_or_else(|| "vault".to_string(), |n| n.to_string_lossy().to_string()),
+            mount
+                .vault_path
+                .file_name()
+                .map_or_else(|| "vault".to_string(), |n| n.to_string_lossy().to_string()),
             mount.mountpoint,
             mount.backend,
             stats,
@@ -91,7 +100,8 @@ fn run_once(state_manager: &MountStateManager, args: &StatsArgs) -> Result<()> {
 
     match args.format {
         OutputFormat::Json => {
-            let json_results: Vec<_> = results.iter()
+            let json_results: Vec<_> = results
+                .iter()
                 .map(|(name, mp, backend, stats)| {
                     serde_json::json!({
                         "name": name,
@@ -105,7 +115,12 @@ fn run_once(state_manager: &MountStateManager, args: &StatsArgs) -> Result<()> {
         }
         OutputFormat::Table => {
             for (name, mountpoint, backend, stats) in results {
-                println!("Vault: {} @ {} [{}]", name, mountpoint.display(), backend.to_uppercase());
+                println!(
+                    "Vault: {} @ {} [{}]",
+                    name,
+                    mountpoint.display(),
+                    backend.to_uppercase()
+                );
 
                 if let Some(s) = stats {
                     print_stats_table(&s);
@@ -168,15 +183,21 @@ fn print_stats_table(stats: &VaultStatsSnapshot) {
     println!();
 
     // Metadata & errors
-    println!("  Metadata Ops: {} (avg {:.2} ms)",
-        stats.total_metadata_ops,
-        stats.metadata_latency_avg_ms);
-    println!("  Open: {} files, {} dirs", stats.open_files, stats.open_dirs);
+    println!(
+        "  Metadata Ops: {} (avg {:.2} ms)",
+        stats.total_metadata_ops, stats.metadata_latency_avg_ms
+    );
+    println!(
+        "  Open: {} files, {} dirs",
+        stats.open_files, stats.open_dirs
+    );
     println!("  Errors: {}", stats.total_errors);
 
     // Cache stats
-    println!("  Cache: {:.1}% hit rate ({} hits / {} misses)",
+    println!(
+        "  Cache: {:.1}% hit rate ({} hits / {} misses)",
         stats.cache.hit_rate() * 100.0,
         stats.cache.hits,
-        stats.cache.misses);
+        stats.cache.misses
+    );
 }

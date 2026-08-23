@@ -9,11 +9,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use super::config::{AppConfig, BackendType, ConfigLoadStatus, VaultConfig};
-use crate::backend::{mount_manager, DesktopMountState};
+use crate::backend::{DesktopMountState, mount_manager};
 
 /// The runtime state of a vault
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum VaultState {
     /// Vault is locked (password not entered)
     #[default]
@@ -21,7 +20,6 @@ pub enum VaultState {
     /// Vault is mounted at the specified path
     Mounted { mountpoint: PathBuf },
 }
-
 
 impl VaultState {
     /// Returns true if the vault is currently locked
@@ -210,7 +208,11 @@ impl AppState {
             .iter()
             .map(|config| ManagedVault {
                 config: config.clone(),
-                state: self.vault_states.get(&config.id).cloned().unwrap_or_default(),
+                state: self
+                    .vault_states
+                    .get(&config.id)
+                    .cloned()
+                    .unwrap_or_default(),
             })
             .collect()
     }
@@ -357,10 +359,7 @@ fn cleanup_orphaned_mounts(config: &AppConfig) {
 
         // Always remove from state file, regardless of unmount success
         if let Err(e) = state_manager.remove_mount(&mountpoint) {
-            tracing::warn!(
-                "Failed to remove orphan from state file: {}",
-                e
-            );
+            tracing::warn!("Failed to remove orphan from state file: {}", e);
         }
     }
 }

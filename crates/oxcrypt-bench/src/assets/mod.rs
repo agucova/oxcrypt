@@ -28,6 +28,6 @@ mod cache;
 mod downloader;
 pub mod manifest;
 
-pub use cache::{format_size, AssetCache, AssetStatus, GcStats};
-pub use downloader::{download_all, download_category, AssetDownloader, DownloadProgress};
-pub use manifest::{all_assets, assets_by_category, get_asset, Asset, AssetCategory};
+pub use cache::{AssetCache, AssetStatus, GcStats, format_size};
+pub use downloader::{AssetDownloader, DownloadProgress, download_all, download_category};
+pub use manifest::{Asset, AssetCategory, all_assets, assets_by_category, get_asset};

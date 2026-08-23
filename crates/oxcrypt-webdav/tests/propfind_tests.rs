@@ -8,7 +8,7 @@
 
 mod common;
 
-use common::{multi_chunk_content, one_chunk_content, TestServer, CHUNK_SIZE};
+use common::{CHUNK_SIZE, TestServer, multi_chunk_content, one_chunk_content};
 use reqwest::StatusCode;
 
 // ============================================================================
@@ -46,10 +46,7 @@ async fn test_propfind_root_depth_1() {
         body.contains("file1.txt") || body.contains("file1"),
         "PROPFIND should list file1.txt"
     );
-    assert!(
-        body.contains("subdir"),
-        "PROPFIND should list subdir"
-    );
+    assert!(body.contains("subdir"), "PROPFIND should list subdir");
 }
 
 #[tokio::test]
@@ -86,7 +83,9 @@ async fn test_propfind_directory() {
 
     // Should be identified as a collection
     assert!(
-        body.contains("<D:collection/>") || body.contains("<D:collection />") || body.contains(":collection"),
+        body.contains("<D:collection/>")
+            || body.contains("<D:collection />")
+            || body.contains(":collection"),
         "Directory should be marked as collection"
     );
 }
@@ -162,21 +161,44 @@ async fn test_propfind_after_put() {
     server.put_ok("/changing.txt", b"initial".to_vec()).await;
 
     // Verify content was written correctly
-    let content1 = server.get_bytes("/changing.txt").await.expect("Should get content");
-    eprintln!("DEBUG: First GET returned {} bytes: {:?}", content1.len(), String::from_utf8_lossy(&content1));
+    let content1 = server
+        .get_bytes("/changing.txt")
+        .await
+        .expect("Should get content");
+    eprintln!(
+        "DEBUG: First GET returned {} bytes: {:?}",
+        content1.len(),
+        String::from_utf8_lossy(&content1)
+    );
     assert_eq!(content1.as_ref(), b"initial", "Content should be 'initial'");
 
     let (status1, body1) = server.propfind_body("/changing.txt", "0").await;
     assert!(status1 == StatusCode::MULTI_STATUS || status1.is_success());
-    assert!(body1.contains('7'), "Initial size should be 7, body: {body1}");
+    assert!(
+        body1.contains('7'),
+        "Initial size should be 7, body: {body1}"
+    );
 
     // Overwrite with larger
-    server.put_ok("/changing.txt", b"larger content here".to_vec()).await;
+    server
+        .put_ok("/changing.txt", b"larger content here".to_vec())
+        .await;
 
     // Verify content was overwritten correctly
-    let content2 = server.get_bytes("/changing.txt").await.expect("Should get content");
-    eprintln!("DEBUG: Second GET returned {} bytes: {:?}", content2.len(), String::from_utf8_lossy(&content2));
-    assert_eq!(content2.as_ref(), b"larger content here", "Content should be updated");
+    let content2 = server
+        .get_bytes("/changing.txt")
+        .await
+        .expect("Should get content");
+    eprintln!(
+        "DEBUG: Second GET returned {} bytes: {:?}",
+        content2.len(),
+        String::from_utf8_lossy(&content2)
+    );
+    assert_eq!(
+        content2.as_ref(),
+        b"larger content here",
+        "Content should be updated"
+    );
 
     let (status2, body2) = server.propfind_body("/changing.txt", "0").await;
     assert!(status2 == StatusCode::MULTI_STATUS || status2.is_success());
@@ -219,7 +241,9 @@ async fn test_propfind_list_after_create() {
     assert!(status1 == StatusCode::MULTI_STATUS || status1.is_success());
 
     // Add a file
-    server.put_ok("/listtest/newfile.txt", b"new".to_vec()).await;
+    server
+        .put_ok("/listtest/newfile.txt", b"new".to_vec())
+        .await;
 
     // Check it appears in listing
     let (status2, body2) = server.propfind_body("/listtest", "1").await;
@@ -235,7 +259,9 @@ async fn test_propfind_list_after_delete() {
     let server = TestServer::with_temp_vault().await;
 
     server.mkcol_ok("/deletelist").await;
-    server.put_ok("/deletelist/file.txt", b"content".to_vec()).await;
+    server
+        .put_ok("/deletelist/file.txt", b"content".to_vec())
+        .await;
 
     // Verify file is in listing
     let (_, body1) = server.propfind_body("/deletelist", "1").await;
@@ -287,8 +313,7 @@ async fn test_propfind_empty_directory() {
 
     // Should contain the directory itself but no children
     // The response element count should be minimal
-    let response_count = body.matches("<D:response>").count()
-        + body.matches("<response>").count();
+    let response_count = body.matches("<D:response>").count() + body.matches("<response>").count();
     assert!(
         response_count <= 2,
         "Empty directory should have minimal responses (got {response_count})"
@@ -301,7 +326,9 @@ async fn test_propfind_nested_directory() {
 
     server.mkcol_ok("/outer").await;
     server.mkcol_ok("/outer/inner").await;
-    server.put_ok("/outer/inner/deep.txt", b"deep".to_vec()).await;
+    server
+        .put_ok("/outer/inner/deep.txt", b"deep".to_vec())
+        .await;
 
     // Depth 1 on /outer should show /outer/inner but not /outer/inner/deep.txt
     let (status, body) = server.propfind_body("/outer", "1").await;
@@ -332,14 +359,19 @@ async fn test_propfind_unicode_filename() {
     );
 
     // Should be accessible
-    assert!(body.contains("テスト") || body.contains("%E3%83"), "Response should contain filename");
+    assert!(
+        body.contains("テスト") || body.contains("%E3%83"),
+        "Response should contain filename"
+    );
 }
 
 #[tokio::test]
 async fn test_propfind_with_spaces() {
     let server = TestServer::with_temp_vault().await;
 
-    server.put_ok("/file with spaces.txt", b"content".to_vec()).await;
+    server
+        .put_ok("/file with spaces.txt", b"content".to_vec())
+        .await;
 
     let (status, _body) = server.propfind_body("/file with spaces.txt", "0").await;
     assert!(

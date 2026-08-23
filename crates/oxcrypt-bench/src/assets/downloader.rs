@@ -4,7 +4,7 @@
 
 use super::cache::AssetCache;
 use super::manifest::Asset;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -122,7 +122,11 @@ impl AssetDownloader {
     fn download(&self, asset: &Asset) -> Result<()> {
         let dest_path = self.cache.asset_path(asset);
 
-        tracing::info!("Downloading {} (~{})", asset.name, super::cache::format_size(asset.size));
+        tracing::info!(
+            "Downloading {} (~{})",
+            asset.name,
+            super::cache::format_size(asset.size)
+        );
 
         // Try each URL until one succeeds
         let mut last_error = None;

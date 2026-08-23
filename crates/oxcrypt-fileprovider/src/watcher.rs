@@ -49,9 +49,10 @@ impl VaultWatcher {
         let watcher = notify::recommended_watcher(move |res: Result<notify::Event, _>| {
             if let Ok(event) = res {
                 // Only care about changes in the vault's d/ directory
-                let is_vault_change = event.paths.iter().any(|p| {
-                    p.to_str().is_some_and(|s| s.contains("/d/"))
-                });
+                let is_vault_change = event
+                    .paths
+                    .iter()
+                    .any(|p| p.to_str().is_some_and(|s| s.contains("/d/")));
 
                 if is_vault_change {
                     debug!("Vault change detected: {:?}", event.paths);

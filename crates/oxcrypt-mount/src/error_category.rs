@@ -348,7 +348,10 @@ mod tests {
         assert_eq!(VaultErrorCategory::NotEmpty.name(), "NotEmpty");
         assert_eq!(VaultErrorCategory::IsDirectory.name(), "IsDirectory");
         assert_eq!(VaultErrorCategory::NotDirectory.name(), "NotDirectory");
-        assert_eq!(VaultErrorCategory::InvalidArgument.name(), "InvalidArgument");
+        assert_eq!(
+            VaultErrorCategory::InvalidArgument.name(),
+            "InvalidArgument"
+        );
         assert_eq!(VaultErrorCategory::IoError.name(), "IoError");
         assert_eq!(
             VaultErrorCategory::PermissionDenied.name(),
@@ -366,7 +369,10 @@ mod tests {
         assert_eq!(VaultErrorCategory::NotDirectory.to_errno(), libc::ENOTDIR);
         assert_eq!(VaultErrorCategory::InvalidArgument.to_errno(), libc::EINVAL);
         assert_eq!(VaultErrorCategory::IoError.to_errno(), libc::EIO);
-        assert_eq!(VaultErrorCategory::PermissionDenied.to_errno(), libc::EACCES);
+        assert_eq!(
+            VaultErrorCategory::PermissionDenied.to_errno(),
+            libc::EACCES
+        );
         assert_eq!(VaultErrorCategory::NotSupported.to_errno(), libc::ENOTSUP);
     }
 

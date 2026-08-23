@@ -8,8 +8,8 @@
 //!
 //! Tests cache coherency, concurrent metadata access, and write invalidation visibility.
 
-use crate::bench::workloads::WorkloadConfig;
 use crate::bench::Benchmark;
+use crate::bench::workloads::WorkloadConfig;
 use crate::config::OperationType;
 use anyhow::Result;
 use oxcrypt_mount::safe_sync;
@@ -19,8 +19,8 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -38,9 +38,7 @@ const MIN_WORKLOAD_DURATION: Duration = Duration::from_secs(5);
 
 /// Dynamic thread count based on available CPU cores.
 fn thread_count() -> usize {
-    thread::available_parallelism()
-        .map(|p| p.get().clamp(2, 8))
-        .unwrap_or(4)
+    thread::available_parallelism().map_or(4, |p| p.get().clamp(2, 8))
 }
 
 /// Concurrent Editor Workload.
@@ -64,7 +62,8 @@ impl ConcurrentWorkload {
         let num_files = config.scale_count(BASE_NUM_FILES, MIN_NUM_FILES);
         let editor_hot_files = config.scale_count(BASE_EDITOR_HOT_FILES, MIN_EDITOR_HOT_FILES);
         let output_files = config.scale_count(BASE_OUTPUT_FILES, MIN_OUTPUT_FILES);
-        let workload_duration = config.scale_duration(BASE_WORKLOAD_DURATION, MIN_WORKLOAD_DURATION);
+        let workload_duration =
+            config.scale_duration(BASE_WORKLOAD_DURATION, MIN_WORKLOAD_DURATION);
 
         Self {
             config,
@@ -76,9 +75,12 @@ impl ConcurrentWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_concurrent_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_concurrent_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn source_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -101,7 +103,7 @@ impl ConcurrentWorkload {
     }
 
     /// Generate initial file content.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn generate_content(&self, rng: &mut ChaCha8Rng, index: usize) -> Vec<u8> {
         let size = 5 * 1024 + rng.random_range(0..10 * 1024); // 5KB-15KB
         let mut content = Vec::with_capacity(size);
@@ -110,15 +112,13 @@ impl ConcurrentWorkload {
             .expect("Failed to write to in-memory buffer - system OOM");
         writeln!(content, "// Version: 1")
             .expect("Failed to write to in-memory buffer - system OOM");
-        writeln!(content)
-            .expect("Failed to write to in-memory buffer - system OOM");
+        writeln!(content).expect("Failed to write to in-memory buffer - system OOM");
 
         while content.len() < size {
             let line: String = (0..70)
                 .map(|_| (b'a' + (rng.random::<u8>() % 26)) as char)
                 .collect();
-            writeln!(content, "{line}")
-                .expect("Failed to write to in-memory buffer - system OOM");
+            writeln!(content, "{line}").expect("Failed to write to in-memory buffer - system OOM");
         }
 
         content.truncate(size);
@@ -198,7 +198,8 @@ impl Benchmark for ConcurrentWorkload {
                             break;
                         }
 
-                        let path = mp.join("bench_concurrent_workload/src")
+                        let path = mp
+                            .join("bench_concurrent_workload/src")
                             .join(format!("source_{hot_idx:03}.txt"));
 
                         // Read

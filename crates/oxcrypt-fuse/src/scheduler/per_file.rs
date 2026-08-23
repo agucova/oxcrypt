@@ -227,9 +227,9 @@ impl PerFileOrdering {
     /// Returns the last error if any operation failed, or `Ok(())` if all succeeded.
     /// Clears the error state on successful return.
     pub async fn barrier(&self, inode: u64) -> Result<(), i32> {
-        let state = match self.get(inode) {
-            Some(s) => s,
-            None => return Ok(()), // No state = no operations = success
+        // No state = no operations = success
+        let Some(state) = self.get(inode) else {
+            return Ok(());
         };
 
         self.stats.barrier_waits.fetch_add(1, Ordering::Relaxed);

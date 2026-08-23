@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{generate_test_data, TestMount};
+use common::{TestMount, generate_test_data};
 
 #[test]
 fn file_size_accuracy() {
@@ -76,7 +76,9 @@ fn file_vs_directory_type() {
     let mount = test_mount_or_skip!("type_check");
 
     mount.mkdir("a_dir").expect("mkdir failed");
-    mount.write_file("a_file.txt", b"data").expect("Write failed");
+    mount
+        .write_file("a_file.txt", b"data")
+        .expect("Write failed");
 
     let dir_meta = mount.metadata("a_dir").expect("Dir metadata failed");
     let file_meta = mount.metadata("a_file.txt").expect("File metadata failed");
@@ -130,9 +132,13 @@ fn mixed_directory_listing() {
     let mount = test_mount_or_skip!("mixed_list");
 
     mount.mkdir("mixed").expect("mkdir failed");
-    mount.write_file("mixed/file1.txt", b"1").expect("Write failed");
+    mount
+        .write_file("mixed/file1.txt", b"1")
+        .expect("Write failed");
     mount.mkdir("mixed/subdir1").expect("mkdir failed");
-    mount.write_file("mixed/file2.txt", b"2").expect("Write failed");
+    mount
+        .write_file("mixed/file2.txt", b"2")
+        .expect("Write failed");
     mount.mkdir("mixed/subdir2").expect("mkdir failed");
 
     let entries = mount.list_dir("mixed").expect("List failed");

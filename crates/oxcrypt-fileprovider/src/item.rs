@@ -3,11 +3,11 @@
 //! File Provider requires stable string identifiers for all items.
 //! We use base64url-encoded vault paths for this purpose.
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use thiserror::Error;
 
 /// Root item identifier (empty path)
-pub const ROOT_ITEM_IDENTIFIER: &str = "cm9vdA";  // base64url("root")
+pub const ROOT_ITEM_IDENTIFIER: &str = "cm9vdA"; // base64url("root")
 
 /// Working set container identifier
 #[allow(dead_code)]

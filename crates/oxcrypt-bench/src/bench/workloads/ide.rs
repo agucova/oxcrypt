@@ -32,11 +32,7 @@ const MIN_EDIT_CYCLES: usize = 5;
 const MIN_OUTPUT_FILE_COUNT: usize = 2;
 
 /// IDE workload phases for progress reporting.
-const IDE_PHASES: &[&str] = &[
-    "Project Open",
-    "Active Editing",
-    "Save & Build",
-];
+const IDE_PHASES: &[&str] = &["Project Open", "Active Editing", "Save & Build"];
 
 /// IDE Simulation Workload.
 ///
@@ -70,9 +66,12 @@ impl IdeWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_ide_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_ide_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn source_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -94,7 +93,7 @@ impl IdeWorkload {
     }
 
     /// Generate realistic source file content (10KB-100KB).
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn generate_source_content(&self, rng: &mut ChaCha8Rng, index: usize) -> Vec<u8> {
         let size = 10 * 1024 + rng.random_range(0..90 * 1024); // 10KB-100KB
         let mut content = Vec::with_capacity(size);
@@ -150,10 +149,16 @@ impl Benchmark for IdeWorkload {
 
     fn parameters(&self) -> HashMap<String, String> {
         let mut params = HashMap::new();
-        params.insert("source_files".to_string(), self.num_source_files.to_string());
+        params.insert(
+            "source_files".to_string(),
+            self.num_source_files.to_string(),
+        );
         params.insert("hot_files".to_string(), self.hot_file_count.to_string());
         params.insert("edit_cycles".to_string(), self.edit_cycles.to_string());
-        params.insert("output_files".to_string(), self.output_file_count.to_string());
+        params.insert(
+            "output_files".to_string(),
+            self.output_file_count.to_string(),
+        );
         params.insert("scale".to_string(), format!("{:.2}", self.config.scale));
         params
     }
@@ -277,7 +282,7 @@ impl Benchmark for IdeWorkload {
         Ok(start.elapsed())
     }
 
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn cleanup(&self, mount_point: &Path, iteration: usize) -> Result<()> {
         let workload_dir = self.workload_dir(mount_point, iteration);
         if workload_dir.exists() {
@@ -343,7 +348,11 @@ impl Benchmark for IdeWorkload {
             let content = fs::read(&path)?;
             std::hint::black_box(&content);
             if i % 10 == 0 || i == self.num_source_files - 1 {
-                report(0, Some(1 + self.num_source_files + i + 1), Some(phase1_total));
+                report(
+                    0,
+                    Some(1 + self.num_source_files + i + 1),
+                    Some(phase1_total),
+                );
             }
         }
 

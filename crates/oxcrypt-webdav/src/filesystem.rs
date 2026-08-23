@@ -4,7 +4,7 @@
 //! `VaultOperationsAsync` to expose vault contents via WebDAV.
 
 use crate::dir_entry::CryptomatorDirEntry;
-use crate::error::{vault_error_to_fs_error, write_error_to_fs_error, WebDavError};
+use crate::error::{WebDavError, vault_error_to_fs_error, write_error_to_fs_error};
 use crate::file::CryptomatorFile;
 use crate::metadata::CryptomatorMetaData;
 use dav_server::davpath::DavPath;
@@ -13,8 +13,8 @@ use dav_server::fs::{
     ReadDirMeta,
 };
 use futures::stream;
-use oxcrypt_core::vault::operations_async::VaultOperationsAsync;
 use oxcrypt_core::vault::DirId;
+use oxcrypt_core::vault::operations_async::VaultOperationsAsync;
 use oxcrypt_mount::moka_cache::SyncTtlCache;
 use oxcrypt_mount::{HandleTable, VaultStats, WriteBuffer};
 use std::path::Path;
@@ -149,7 +149,8 @@ impl CryptomatorWebDav {
         }
 
         // Cache miss - resolve path
-        let (dir_id, _is_dir) = self.ops
+        let (dir_id, _is_dir) = self
+            .ops
             .resolve_path(path)
             .await
             .map_err(vault_error_to_fs_error)?;
@@ -190,13 +191,14 @@ impl CryptomatorWebDav {
                 trace!(path = %path, "found directory via O(1) lookup");
                 return Ok(meta);
             }
-            Ok(None) => {}  // Not a directory, continue to file lookup
+            Ok(None) => {} // Not a directory, continue to file lookup
             Err(e) => {
                 // ENOTDIR (error code 20) means we tried to open a file as a directory
                 // This is expected when the path is a file, so we treat it as "not found"
                 // and continue to the next lookup
                 use oxcrypt_core::vault::operations::VaultOperationError;
-                if matches!(e, VaultOperationError::Io { ref source, .. } if source.raw_os_error() == Some(20)) {
+                if matches!(e, VaultOperationError::Io { ref source, .. } if source.raw_os_error() == Some(20))
+                {
                     // Not a directory - continue to file lookup
                 } else {
                     // Other errors should be propagated
@@ -213,11 +215,12 @@ impl CryptomatorWebDav {
                 trace!(path = %path, "found file via O(1) lookup");
                 return Ok(meta);
             }
-            Ok(None) => {}  // Not a file, continue to symlink lookup
+            Ok(None) => {} // Not a file, continue to symlink lookup
             Err(e) => {
                 // Similar to directories, ENOTDIR means we tried to read a directory as a file
                 use oxcrypt_core::vault::operations::VaultOperationError;
-                if matches!(e, VaultOperationError::Io { ref source, .. } if source.raw_os_error() == Some(20)) {
+                if matches!(e, VaultOperationError::Io { ref source, .. } if source.raw_os_error() == Some(20))
+                {
                     // Not a file - continue to symlink lookup
                 } else {
                     return Err(vault_error_to_fs_error(e));
@@ -233,10 +236,11 @@ impl CryptomatorWebDav {
                 trace!(path = %path, "found symlink via O(1) lookup");
                 return Ok(meta);
             }
-            Ok(None) => {}  // Not a symlink
+            Ok(None) => {} // Not a symlink
             Err(e) => {
                 use oxcrypt_core::vault::operations::VaultOperationError;
-                if matches!(e, VaultOperationError::Io { ref source, .. } if source.raw_os_error() == Some(20)) {
+                if matches!(e, VaultOperationError::Io { ref source, .. } if source.raw_os_error() == Some(20))
+                {
                     // Not a symlink
                 } else {
                     return Err(vault_error_to_fs_error(e));
@@ -251,21 +255,22 @@ impl CryptomatorWebDav {
     async fn flush_write_buffer(&self, path: &str) -> Result<(), FsError> {
         let path_key = path.to_string();
         if let Some(buffer) = self.write_buffers.remove(&path_key)
-            && buffer.is_dirty() {
-                let dir_id = buffer.dir_id().clone();
-                let filename = buffer.filename().to_string();
-                let content = buffer.into_content();
+            && buffer.is_dirty()
+        {
+            let dir_id = buffer.dir_id().clone();
+            let filename = buffer.filename().to_string();
+            let content = buffer.into_content();
 
-                debug!(path = %path, size = content.len(), "Flushing write buffer to vault");
+            debug!(path = %path, size = content.len(), "Flushing write buffer to vault");
 
-                self.ops
-                    .write_file(&dir_id, &filename, &content)
-                    .await
-                    .map_err(write_error_to_fs_error)?;
+            self.ops
+                .write_file(&dir_id, &filename, &content)
+                .await
+                .map_err(write_error_to_fs_error)?;
 
-                // Invalidate cache since file size has changed
-                self.metadata_cache.invalidate(&path_key);
-            }
+            // Invalidate cache since file size has changed
+            self.metadata_cache.invalidate(&path_key);
+        }
         Ok(())
     }
 
@@ -485,7 +490,11 @@ impl CryptomatorWebDav {
 
 impl DavFileSystem for CryptomatorWebDav {
     #[instrument(level = "debug", skip(self), fields(path = %path.as_url_string()))]
-    fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<'a, Box<dyn DavFile>> {
+    fn open<'a>(
+        &'a self,
+        path: &'a DavPath,
+        options: OpenOptions,
+    ) -> FsFuture<'a, Box<dyn DavFile>> {
         Box::pin(async move {
             let open_start = Instant::now();
             let vault_path = Self::parse_path(path);
@@ -892,14 +901,15 @@ impl DavFileSystem for CryptomatorWebDav {
                 // so we need to delete the destination if it exists.
                 // (dav-server only deletes destination directories, not files)
                 if let Ok(dest_meta) = self.find_entry(&to_path).await
-                    && dest_meta.is_file() {
-                        debug!(dest = %to_path, "Deleting existing destination file for overwrite");
-                        if let Err(e) = self.ops.delete_file(&to_dir_id, &to_name).await {
-                            self.stats.record_error();
-                            self.stats.record_metadata_latency(start.elapsed());
-                            return Err(write_error_to_fs_error(e));
-                        }
+                    && dest_meta.is_file()
+                {
+                    debug!(dest = %to_path, "Deleting existing destination file for overwrite");
+                    if let Err(e) = self.ops.delete_file(&to_dir_id, &to_name).await {
+                        self.stats.record_error();
+                        self.stats.record_metadata_latency(start.elapsed());
+                        return Err(write_error_to_fs_error(e));
                     }
+                }
 
                 if from_dir_id == to_dir_id && from_name != to_name {
                     // Same directory, just rename

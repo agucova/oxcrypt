@@ -10,8 +10,8 @@
 mod common;
 
 use common::{
-    assert_file_content, assert_file_hash, multi_chunk_content, random_bytes, sha256, TestServer,
-    CHUNK_SIZE,
+    CHUNK_SIZE, TestServer, assert_file_content, assert_file_hash, multi_chunk_content,
+    random_bytes, sha256,
 };
 
 // ============================================================================
@@ -117,7 +117,9 @@ async fn test_unicode_content_extended() {
     )
     .as_bytes();
 
-    server.put_ok("/unicode_extended.txt", content.to_vec()).await;
+    server
+        .put_ok("/unicode_extended.txt", content.to_vec())
+        .await;
     assert_file_content(&server, "/unicode_extended.txt", content).await;
 }
 
@@ -447,7 +449,12 @@ async fn test_repeating_pattern() {
 
     // Repeating pattern that spans chunks
     let pattern = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let content: Vec<u8> = pattern.iter().cycle().take(CHUNK_SIZE * 2 + 100).copied().collect();
+    let content: Vec<u8> = pattern
+        .iter()
+        .cycle()
+        .take(CHUNK_SIZE * 2 + 100)
+        .copied()
+        .collect();
 
     let expected_hash = sha256(&content);
     server.put_ok("/repeating.bin", content).await;
@@ -473,9 +480,7 @@ async fn test_sequential_numbers() {
     let server = TestServer::with_temp_vault().await;
 
     // Sequential 32-bit numbers (catches endianness issues)
-    let content: Vec<u8> = (0u32..10000)
-        .flat_map(u32::to_le_bytes)
-        .collect();
+    let content: Vec<u8> = (0u32..10000).flat_map(u32::to_le_bytes).collect();
 
     let expected_hash = sha256(&content);
     server.put_ok("/sequential.bin", content).await;

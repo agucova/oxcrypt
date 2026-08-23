@@ -3,7 +3,11 @@
 // Allow numeric casts in this module - all statistical calculations involve conversions
 // between Duration (u64 nanos), f64 (for floating point math), and usize (for indexing).
 // These are all intentional and necessary for accurate statistics.
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
 
 use crate::bench::BenchmarkResult;
 use crate::config::{FileSize, Implementation, OperationType};

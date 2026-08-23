@@ -210,7 +210,9 @@ fn get_system_mounts_macos() -> Result<Vec<SystemMount>> {
             Ok(Vec::new())
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => {
-            tracing::warn!("Mount command thread terminated unexpectedly. Returning empty mount list.");
+            tracing::warn!(
+                "Mount command thread terminated unexpectedly. Returning empty mount list."
+            );
             Ok(Vec::new())
         }
     }
@@ -406,11 +408,13 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn test_parse_macos_mount_line_with_spaces() {
-        let line =
-            "cryptomator:vault on /Users/me/My Vaults/my vault (macfuse, nodev, nosuid)";
+        let line = "cryptomator:vault on /Users/me/My Vaults/my vault (macfuse, nodev, nosuid)";
         let mount = parse_macos_mount_line(line).unwrap();
 
-        assert_eq!(mount.mountpoint, PathBuf::from("/Users/me/My Vaults/my vault"));
+        assert_eq!(
+            mount.mountpoint,
+            PathBuf::from("/Users/me/My Vaults/my vault")
+        );
     }
 
     #[cfg(target_os = "linux")]
@@ -430,10 +434,7 @@ mod tests {
         // \040 = space
         assert_eq!(unescape_mount_path("/mnt/my\\040vault"), "/mnt/my vault");
         // Multiple escapes
-        assert_eq!(
-            unescape_mount_path("/mnt/a\\040b\\040c"),
-            "/mnt/a b c"
-        );
+        assert_eq!(unescape_mount_path("/mnt/a\\040b\\040c"), "/mnt/a b c");
         // No escapes
         assert_eq!(unescape_mount_path("/mnt/vault"), "/mnt/vault");
     }

@@ -14,9 +14,8 @@ use std::sync::{Arc, OnceLock};
 use tracing::instrument;
 
 use oxcrypt_mount::{
-    BackendInfo, BackendType, MountBackend, MountHandle, VaultStats,
-    first_available_backend, list_backend_info, select_backend,
-    signal, daemon,
+    BackendInfo, BackendType, MountBackend, MountHandle, VaultStats, daemon,
+    first_available_backend, list_backend_info, select_backend, signal,
 };
 
 use crate::ipc::{self, IpcServer};
@@ -142,11 +141,13 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
     let mountpoint = match args.mountpoint.clone() {
         Some(mp) => mp,
         None => {
-            let vault_name = args.vault
+            let vault_name = args
+                .vault
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("vault");
-            directories::BaseDirs::new().map(|d| d.home_dir().to_path_buf())
+            directories::BaseDirs::new()
+                .map(|d| d.home_dir().to_path_buf())
                 .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
                 .join("Vaults")
                 .join(vault_name)
@@ -174,7 +175,9 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
     // Get backend
     let backends = build_backends(args);
     if backends.is_empty() {
-        anyhow::bail!("No mount backends enabled. Rebuild with --features fuse, --features fskit, or --features webdav");
+        anyhow::bail!(
+            "No mount backends enabled. Rebuild with --features fuse, --features fskit, or --features webdav"
+        );
     }
 
     let backend = match args.backend {
@@ -182,15 +185,14 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
             let backend_type: BackendType = arg.into();
             select_backend(&backends, backend_type).context("Failed to get mount backend")?
         }
-        None => {
-            first_available_backend(&backends).context("No mount backend available")?
-        }
+        None => first_available_backend(&backends).context("No mount backend available")?,
     };
 
     eprintln!("Using {} backend", backend.name());
 
     // Generate a vault ID from the path
-    let vault_id = args.vault
+    let vault_id = args
+        .vault
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("vault");
@@ -234,8 +236,8 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
     let socket_path = ipc_server.as_ref().map(|s| s.socket_path().to_path_buf());
 
     // Register in state file
-    let state_manager = crate::state::MountStateManager::new()
-        .context("Failed to initialize state manager")?;
+    let state_manager =
+        crate::state::MountStateManager::new().context("Failed to initialize state manager")?;
     let mount_entry = crate::state::MountEntry::new(
         args.vault.clone(),
         mountpoint.clone(),
@@ -258,17 +260,14 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
     }
 
     // Set up signal handler for graceful shutdown
-    signal::install_signal_handler()
-        .context("Failed to set signal handler")?;
+    signal::install_signal_handler().context("Failed to set signal handler")?;
 
     // Main loop: wait for signal while handling IPC requests
     // Use event-driven wait with periodic wakeups for IPC polling
     while !signal::shutdown_requested() {
         if let (Some(server), Some(stats)) = (&ipc_server, &stats) {
             // Process any pending IPC requests
-            if let Err(e) = server.try_accept(|request| {
-                ipc::handle_request(&request, stats)
-            }) {
+            if let Err(e) = server.try_accept(|request| ipc::handle_request(&request, stats)) {
                 tracing::debug!("IPC accept error: {}", e);
             }
             // Wait with timeout to allow periodic IPC polling
@@ -296,9 +295,10 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
 
     // Remove from state file after successful unmount
     if let Ok(manager) = crate::state::MountStateManager::new()
-        && let Err(e) = manager.remove_by_mountpoint(&mountpoint) {
-            tracing::warn!("Failed to remove mount from state file: {}", e);
-        }
+        && let Err(e) = manager.remove_by_mountpoint(&mountpoint)
+    {
+        tracing::warn!("Failed to remove mount from state file: {}", e);
+    }
 
     Ok(())
 }
@@ -336,8 +336,7 @@ fn spawn_daemon_mount(args: &Args, mountpoint: &PathBuf, password: &str) -> Resu
     cmd.env("OXCRYPT_PASSWORD", password);
 
     // Spawn using proper daemonization
-    let pid = daemon::spawn_as_daemon(&mut cmd)
-        .context("Failed to spawn daemon process")?;
+    let pid = daemon::spawn_as_daemon(&mut cmd).context("Failed to spawn daemon process")?;
 
     // Give daemon time to start
     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -375,9 +374,13 @@ static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLo
 /// - Linux: `$XDG_STATE_HOME/oxcrypt/logs/` (defaults to `~/.local/state/oxcrypt/logs/`)
 ///
 /// Returns a guard that must be kept alive for the duration of the daemon.
-fn setup_daemon_logging(vault_path: &std::path::Path) -> Result<&'static tracing_appender::non_blocking::WorkerGuard> {
+fn setup_daemon_logging(
+    vault_path: &std::path::Path,
+) -> Result<&'static tracing_appender::non_blocking::WorkerGuard> {
     use tracing_appender::rolling::{RollingFileAppender, Rotation};
-    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Layer, EnvFilter};
+    use tracing_subscriber::{
+        EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt,
+    };
 
     // Get the log directory
     let log_dir = get_daemon_log_directory();
@@ -394,11 +397,7 @@ fn setup_daemon_logging(vault_path: &std::path::Path) -> Result<&'static tracing
     let log_filename = format!("daemon-{vault_name}.log");
 
     // Create rolling file appender (daily rotation)
-    let file_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &log_dir,
-        &log_filename,
-    );
+    let file_appender = RollingFileAppender::new(Rotation::DAILY, &log_dir, &log_filename);
 
     // Make file appender non-blocking
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
@@ -407,17 +406,14 @@ fn setup_daemon_logging(vault_path: &std::path::Path) -> Result<&'static tracing
     let guard = LOG_GUARD.get_or_init(|| guard);
 
     // Set up tracing with file output only (no stderr in daemon mode)
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let file_layer = fmt::layer()
         .with_writer(non_blocking)
         .with_ansi(false)
         .with_filter(filter);
 
-    tracing_subscriber::registry()
-        .with(file_layer)
-        .init();
+    tracing_subscriber::registry().with(file_layer).init();
 
     tracing::info!(
         "Daemon started for vault: {} (PID: {})",
@@ -438,8 +434,8 @@ fn get_daemon_log_directory() -> PathBuf {
         #[cfg(target_os = "linux")]
         {
             // On Linux, prefer state dir for logs
-            if let Some(state_dir) = directories::BaseDirs::new()
-                .and_then(|d| d.state_dir().map(|p| p.to_path_buf()))
+            if let Some(state_dir) =
+                directories::BaseDirs::new().and_then(|d| d.state_dir().map(|p| p.to_path_buf()))
             {
                 return state_dir.join("oxcrypt").join("logs");
             }

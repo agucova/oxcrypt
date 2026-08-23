@@ -1,6 +1,6 @@
 //! oxmount - Mount Cryptomator vaults as FUSE filesystems.
 //!
-//! Usage: oxmount --vault <path> --mount <mountpoint>
+//! Usage: `oxmount --vault <path> --mount <mountpoint>`
 //!
 //! ## Debugging with tokio-console
 //!

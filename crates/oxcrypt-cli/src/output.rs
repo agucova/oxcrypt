@@ -1,6 +1,6 @@
+use comfy_table::Table;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
-use comfy_table::Table;
 
 /// Create a styled table for output
 pub fn create_table() -> Table {

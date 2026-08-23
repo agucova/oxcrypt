@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::path::PathBuf;
 use std::process::Command;
@@ -107,7 +107,11 @@ fn bench_ls(c: &mut Criterion) {
 
     // Create some files for a non-empty listing
     for i in 0..10 {
-        run_oxcrypt_with_stdin(&vault_path, &["write", &format!("/file{i}.txt")], b"content");
+        run_oxcrypt_with_stdin(
+            &vault_path,
+            &["write", &format!("/file{i}.txt")],
+            b"content",
+        );
     }
 
     c.bench_function("ls_root", |b| {
@@ -242,19 +246,27 @@ fn bench_tree(c: &mut Criterion) {
                 };
                 run_oxcrypt(vault_path, &["mkdir", &dir_path]);
                 // Write file inside the directory we just created
-                run_oxcrypt_with_stdin(vault_path, &["write", &format!("{dir_path}/file.txt")], b"x");
+                run_oxcrypt_with_stdin(
+                    vault_path,
+                    &["write", &format!("{dir_path}/file.txt")],
+                    b"x",
+                );
                 create_nested(vault_path, &dir_path, depth - 1);
             }
         }
 
         create_nested(&vault_path, "", depth);
 
-        group.bench_with_input(BenchmarkId::from_parameter(format!("depth_{depth}")), &vault_path, |b, path| {
-            b.iter(|| {
-                let success = run_oxcrypt(path, &["tree"]);
-                black_box(success);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("depth_{depth}")),
+            &vault_path,
+            |b, path| {
+                b.iter(|| {
+                    let success = run_oxcrypt(path, &["tree"]);
+                    black_box(success);
+                });
+            },
+        );
     }
 
     group.finish();
@@ -301,7 +313,10 @@ fn bench_cp(c: &mut Criterion) {
     c.bench_function("cp_100KB", |b| {
         b.iter(|| {
             counter += 1;
-            let success = run_oxcrypt(&vault_path, &["cp", "/source.txt", &format!("/copy{counter}.txt")]);
+            let success = run_oxcrypt(
+                &vault_path,
+                &["cp", "/source.txt", &format!("/copy{counter}.txt")],
+            );
             black_box(success);
         });
     });
@@ -316,11 +331,18 @@ fn bench_mv(c: &mut Criterion) {
             || {
                 counter += 1;
                 // Create a file to move
-                run_oxcrypt_with_stdin(&vault_path, &["write", &format!("/tomove{counter}.txt")], b"content");
+                run_oxcrypt_with_stdin(
+                    &vault_path,
+                    &["write", &format!("/tomove{counter}.txt")],
+                    b"content",
+                );
                 counter
             },
             |i| {
-                let success = run_oxcrypt(&vault_path, &["mv", &format!("/tomove{i}.txt"), &format!("/moved{i}.txt")]);
+                let success = run_oxcrypt(
+                    &vault_path,
+                    &["mv", &format!("/tomove{i}.txt"), &format!("/moved{i}.txt")],
+                );
                 black_box(success);
             },
         );
@@ -336,7 +358,11 @@ fn bench_rm(c: &mut Criterion) {
             || {
                 counter += 1;
                 // Create a file to remove
-                run_oxcrypt_with_stdin(&vault_path, &["write", &format!("/todelete{counter}.txt")], b"content");
+                run_oxcrypt_with_stdin(
+                    &vault_path,
+                    &["write", &format!("/todelete{counter}.txt")],
+                    b"content",
+                );
                 counter
             },
             |i| {

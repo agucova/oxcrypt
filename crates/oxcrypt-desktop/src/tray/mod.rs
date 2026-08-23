@@ -157,29 +157,28 @@ fn create_default_icon() -> Result<Icon, TrayError> {
     };
 
     // SDF for the shackle (rounded U-shape, hollow)
-    let sdf_shackle =
-        |px: f32, py: f32, cx: f32, cy: f32, outer_r: f32, thickness: f32| -> f32 {
-            let dx = px - cx;
-            let dy = py - cy;
-            let dist_from_center = (dx * dx + dy * dy).sqrt();
+    let sdf_shackle = |px: f32, py: f32, cx: f32, cy: f32, outer_r: f32, thickness: f32| -> f32 {
+        let dx = px - cx;
+        let dy = py - cy;
+        let dist_from_center = (dx * dx + dy * dy).sqrt();
 
-            // Annulus (ring) distance
-            let ring_dist = (dist_from_center - (outer_r - thickness / 2.0)).abs() - thickness / 2.0;
+        // Annulus (ring) distance
+        let ring_dist = (dist_from_center - (outer_r - thickness / 2.0)).abs() - thickness / 2.0;
 
-            // Only keep top half (y <= cy) and the legs
-            if py <= cy {
-                ring_dist
-            } else {
-                // Vertical legs
-                let leg_left_x = cx - outer_r + thickness / 2.0;
-                let leg_right_x = cx + outer_r - thickness / 2.0;
+        // Only keep top half (y <= cy) and the legs
+        if py <= cy {
+            ring_dist
+        } else {
+            // Vertical legs
+            let leg_left_x = cx - outer_r + thickness / 2.0;
+            let leg_right_x = cx + outer_r - thickness / 2.0;
 
-                let left_dist = ((px - leg_left_x).abs() - thickness / 2.0).max(0.0);
-                let right_dist = ((px - leg_right_x).abs() - thickness / 2.0).max(0.0);
+            let left_dist = ((px - leg_left_x).abs() - thickness / 2.0).max(0.0);
+            let right_dist = ((px - leg_right_x).abs() - thickness / 2.0).max(0.0);
 
-                left_dist.min(right_dist)
-            }
-        };
+            left_dist.min(right_dist)
+        }
+    };
 
     // Icon geometry (at 2x scale)
     let center_x = SIZE as f32 / 2.0;
@@ -210,8 +209,23 @@ fn create_default_icon() -> Result<Icon, TrayError> {
             let py = y as f32 + 0.5;
 
             // Calculate SDFs for each shape
-            let body_dist = sdf_rounded_rect(px, py, body_cx, body_cy, body_half_w, body_half_h, body_radius);
-            let shackle_dist = sdf_shackle(px, py, shackle_cx, shackle_cy, shackle_outer_r, shackle_thickness);
+            let body_dist = sdf_rounded_rect(
+                px,
+                py,
+                body_cx,
+                body_cy,
+                body_half_w,
+                body_half_h,
+                body_radius,
+            );
+            let shackle_dist = sdf_shackle(
+                px,
+                py,
+                shackle_cx,
+                shackle_cy,
+                shackle_outer_r,
+                shackle_thickness,
+            );
 
             // Combine body and shackle (union = min)
             let lock_dist = body_dist.min(shackle_dist);
@@ -237,7 +251,7 @@ fn create_default_icon() -> Result<Icon, TrayError> {
 
             if alpha > 0 {
                 let idx = (y * SIZE + x) * 4;
-                rgba[idx] = 255;     // R (white)
+                rgba[idx] = 255; // R (white)
                 rgba[idx + 1] = 255; // G
                 rgba[idx + 2] = 255; // B
                 rgba[idx + 3] = alpha;
@@ -250,4 +264,3 @@ fn create_default_icon() -> Result<Icon, TrayError> {
     Icon::from_rgba(rgba, SIZE as u32, SIZE as u32)
         .map_err(|e| TrayError::IconCreation(e.to_string()))
 }
-

@@ -42,8 +42,8 @@ const MIN_NESTED_FILES_PER_SUBDIR: usize = 2;
 const MIN_RANDOM_ACCESS_COUNT: usize = 20;
 
 // Fixed technical parameters (not scaled)
-const SYNTHETIC_FILE_SIZE_MIN: usize = 1024;       // 1KB
-const SYNTHETIC_FILE_SIZE_MAX: usize = 64 * 1024;  // 64KB
+const SYNTHETIC_FILE_SIZE_MIN: usize = 1024; // 1KB
+const SYNTHETIC_FILE_SIZE_MAX: usize = 64 * 1024; // 64KB
 
 /// Archive workload phases for progress reporting.
 const ARCHIVE_PHASES: &[&str] = &[
@@ -81,8 +81,10 @@ impl ArchiveExtractionWorkload {
         let use_real_assets = config.real_assets;
         let num_dirs = config.scale_count(BASE_NUM_DIRS, MIN_NUM_DIRS);
         let files_per_dir = config.scale_count(BASE_FILES_PER_DIR, MIN_FILES_PER_DIR);
-        let nested_files_per_subdir = config.scale_count(BASE_NESTED_FILES_PER_SUBDIR, MIN_NESTED_FILES_PER_SUBDIR);
-        let random_access_count = config.scale_count(BASE_RANDOM_ACCESS_COUNT, MIN_RANDOM_ACCESS_COUNT);
+        let nested_files_per_subdir =
+            config.scale_count(BASE_NESTED_FILES_PER_SUBDIR, MIN_NESTED_FILES_PER_SUBDIR);
+        let random_access_count =
+            config.scale_count(BASE_RANDOM_ACCESS_COUNT, MIN_RANDOM_ACCESS_COUNT);
 
         Self {
             config,
@@ -95,9 +97,12 @@ impl ArchiveExtractionWorkload {
         }
     }
 
-    #[allow(clippy::unused_self)]  // Part of workload API
+    #[allow(clippy::unused_self)] // Part of workload API
     fn workload_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        mount_point.join(format!("bench_archive_workload_{}_iter{}", self.config.session_id, iteration))
+        mount_point.join(format!(
+            "bench_archive_workload_{}_iter{}",
+            self.config.session_id, iteration
+        ))
     }
 
     fn extracted_dir(&self, mount_point: &Path, iteration: usize) -> PathBuf {
@@ -105,11 +110,12 @@ impl ArchiveExtractionWorkload {
     }
 
     fn output_archive(&self, mount_point: &Path, iteration: usize) -> PathBuf {
-        self.workload_dir(mount_point, iteration).join("repacked.tar.gz")
+        self.workload_dir(mount_point, iteration)
+            .join("repacked.tar.gz")
     }
 
     /// Download real archive asset and return the path.
-    #[allow(clippy::unused_self)]  // May access self fields in future
+    #[allow(clippy::unused_self)] // May access self fields in future
     fn download_real_asset(&self) -> Result<PathBuf> {
         let downloader = AssetDownloader::new()?;
 
@@ -197,7 +203,7 @@ impl ArchiveExtractionWorkload {
     }
 
     /// Write a file with random content.
-    #[allow(clippy::unused_self)]  // Helper method - kept as instance method for consistency
+    #[allow(clippy::unused_self)] // Helper method - kept as instance method for consistency
     fn write_random_file(&self, rng: &mut ChaCha8Rng, path: &Path, size: usize) -> Result<()> {
         let mut content = vec![0u8; size];
         rng.fill_bytes(&mut content);
@@ -229,7 +235,7 @@ impl ArchiveExtractionWorkload {
     }
 
     /// Walk all files in a directory tree.
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn walk_files<F>(&self, dir: &Path, callback: &mut F) -> Result<()>
     where
         F: FnMut(&Path) -> Result<()>,
@@ -283,13 +289,8 @@ impl ArchiveExtractionWorkload {
 
             // Time appending to tar
             let append_time_start = Instant::now();
-            let relative_path = path.strip_prefix(source_dir)
-                .unwrap_or(path);
-            builder.append_data(
-                &mut tar::Header::new_gnu(),
-                relative_path,
-                &buffer[..]
-            )?;
+            let relative_path = path.strip_prefix(source_dir).unwrap_or(path);
+            builder.append_data(&mut tar::Header::new_gnu(), relative_path, &buffer[..])?;
             total_append_time += append_time_start.elapsed();
 
             Ok(())
@@ -305,18 +306,28 @@ impl ArchiveExtractionWorkload {
 
         let finish_start = Instant::now();
         let gz = builder.into_inner()?;
-        tracing::debug!("create_archive: builder.into_inner took {:?}", finish_start.elapsed());
+        tracing::debug!(
+            "create_archive: builder.into_inner took {:?}",
+            finish_start.elapsed()
+        );
 
         let gz_finish_start = Instant::now();
         let file = gz.finish()?;
-        tracing::debug!("create_archive: gz.finish took {:?}", gz_finish_start.elapsed());
+        tracing::debug!(
+            "create_archive: gz.finish took {:?}",
+            gz_finish_start.elapsed()
+        );
 
         let sync_start = Instant::now();
         safe_sync(&file)?;
         tracing::debug!("create_archive: safe_sync took {:?}", sync_start.elapsed());
 
         let size = fs::metadata(output_path)?.len();
-        tracing::debug!("create_archive: total time {:?}, size {} bytes", start.elapsed(), size);
+        tracing::debug!(
+            "create_archive: total time {:?}, size {} bytes",
+            start.elapsed(),
+            size
+        );
         Ok(size)
     }
 
@@ -357,7 +368,7 @@ impl ArchiveExtractionWorkload {
     }
 
     /// Collect all directories in a tree.
-    #[allow(clippy::self_only_used_in_recursion)]  // self needed for recursive call
+    #[allow(clippy::self_only_used_in_recursion)] // self needed for recursive call
     fn collect_dirs(&self, dir: &Path, dirs: &mut Vec<PathBuf>) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -398,15 +409,21 @@ impl Benchmark for ArchiveExtractionWorkload {
             params.insert("source".to_string(), "Node.js/ripgrep".to_string());
         } else {
             let total_files = self.num_dirs * self.files_per_dir
-                + (self.num_dirs / 5) * self.nested_files_per_subdir;  // Nested files
+                + (self.num_dirs / 5) * self.nested_files_per_subdir; // Nested files
             params.insert("asset_type".to_string(), "synthetic".to_string());
             params.insert("directories".to_string(), self.num_dirs.to_string());
             params.insert("files_per_dir".to_string(), self.files_per_dir.to_string());
-            params.insert("nested_files".to_string(), self.nested_files_per_subdir.to_string());
+            params.insert(
+                "nested_files".to_string(),
+                self.nested_files_per_subdir.to_string(),
+            );
             params.insert("total_files".to_string(), total_files.to_string());
         }
 
-        params.insert("random_accesses".to_string(), self.random_access_count.to_string());
+        params.insert(
+            "random_accesses".to_string(),
+            self.random_access_count.to_string(),
+        );
         params.insert("scale".to_string(), format!("{:.2}", self.config.scale));
         params
     }
