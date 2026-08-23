@@ -13,20 +13,34 @@
 
 // Use mimalloc for reduced allocation latency (enabled by default).
 // Disable with `--no-default-features` if debugging allocator issues.
-#[cfg(feature = "mimalloc")]
+#[cfg(all(unix, feature = "mimalloc"))]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+#[cfg(unix)]
 use anyhow::{Context, Result};
+#[cfg(unix)]
 use clap::Parser;
+#[cfg(unix)]
 use oxcrypt_mount::MountBackend;
+#[cfg(unix)]
 use oxcrypt_nfs::NfsBackend;
+#[cfg(unix)]
 use std::path::PathBuf;
+#[cfg(unix)]
 use tracing_subscriber::EnvFilter;
-#[cfg(feature = "tokio-console")]
+#[cfg(all(unix, feature = "tokio-console"))]
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Entry point stub for platforms without NFS mount support.
+#[cfg(not(unix))]
+fn main() {
+    eprintln!("oxnfs is only supported on Unix platforms");
+    std::process::exit(1);
+}
+
 /// NFS mount for Cryptomator vaults
+#[cfg(unix)]
 #[derive(Parser, Debug)]
 #[command(name = "oxnfs", version, about)]
 struct Args {
@@ -47,6 +61,7 @@ struct Args {
     password: Option<String>,
 }
 
+#[cfg(unix)]
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing
