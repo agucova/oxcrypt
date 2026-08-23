@@ -11,8 +11,8 @@
 
 use libfuzzer_sys::fuzz_target;
 use arbitrary::Arbitrary;
-use oxidized_cryptolib::crypto::keys::MasterKey;
-use oxidized_cryptolib::fs::name::{decrypt_filename, encrypt_filename, hash_dir_id};
+use oxcrypt_core::crypto::keys::MasterKey;
+use oxcrypt_core::fs::name::{decrypt_filename, encrypt_filename, hash_dir_id};
 
 /// Fixed master key for fuzzing
 fn create_fixed_master_key() -> MasterKey {
@@ -28,7 +28,7 @@ fn create_fixed_master_key() -> MasterKey {
         0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
         0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
     ];
-    MasterKey::new(aes_key, mac_key)
+    MasterKey::new(aes_key, mac_key).expect("fixed master key is valid")
 }
 
 /// Structured input for more targeted fuzzing

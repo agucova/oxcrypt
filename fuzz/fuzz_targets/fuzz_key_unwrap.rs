@@ -7,7 +7,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use oxidized_cryptolib::crypto::key_wrap::{unwrap_key, wrap_key};
+use oxcrypt_core::crypto::key_wrap::{unwrap_key, wrap_key};
 use secrecy::SecretBox;
 
 /// Fixed Key Encryption Key for fuzzing
