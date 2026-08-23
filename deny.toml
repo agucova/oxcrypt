@@ -13,14 +13,22 @@ all-features = true
 # Advisories - CVE and security vulnerability detection
 # =============================================================================
 [advisories]
+# Only flag unmaintained crates that the workspace depends on directly;
+# transitive ones (e.g. GTK3 bindings via dioxus-desktop's Linux webview
+# stack, ansi_term/atty via dudect-bencher) are outside our control.
+unmaintained = "workspace"
 # Ignore these advisories (with justification)
 ignore = [
-    # ansi_term and atty are pulled in by dudect-bencher's old clap 2.x
-    # These are dev dependencies only used for timing analysis benchmarks
-    # Risk: LOW - only affects dev/bench builds, not production
-    { id = "RUSTSEC-2021-0139", reason = "ansi_term unmaintained - dev dep only via dudect-bencher" },
-    { id = "RUSTSEC-2021-0145", reason = "atty unaligned read (Windows only) - dev dep only" },
-    { id = "RUSTSEC-2024-0375", reason = "atty unmaintained - dev dep only via dudect-bencher" },
+    # rsa is pulled in by jsonwebtoken's rust_crypto feature but never used:
+    # vault config JWTs are HMAC-signed (HS256/384/512) per the Cryptomator spec,
+    # and jsonwebtoken has no feature flag to drop the RSA algorithms.
+    { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack - RSA code paths unused (HMAC-only JWTs), no fixed version exists" },
+    # quick-xml 0.26 comes via pprof -> inferno 0.11 (flamegraph SVG generation).
+    # The latest pprof (0.15) still requires inferno ^0.11, which pins quick-xml 0.26.
+    # DoS-only advisories on XML parsing; inferno only parses its own generated SVG,
+    # and pprof is used exclusively by the oxcrypt-bench profiling harness.
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml DoS - bench-only via pprof/inferno, no attacker-controlled input" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml DoS - bench-only via pprof/inferno, no attacker-controlled input" },
 ]
 
 # =============================================================================
@@ -45,6 +53,13 @@ allow = [
     "bzip2-1.0.6",
     # Community Data License Agreement - permissive (via webpki-roots)
     "CDLA-Permissive-2.0",
+]
+
+# Per-crate license exceptions
+exceptions = [
+    # inferno's flamegraph rendering is CDDL-1.0 (from Brendan Gregg's
+    # flamegraph.pl). Bench-only via pprof; never linked into shipped binaries.
+    { crate = "inferno", allow = ["CDDL-1.0"] },
 ]
 
 # Handle special license cases
@@ -81,7 +96,10 @@ external-default-features = "allow"
 deny = [
     # Deprecated/insecure crypto implementations
     { crate = "rust-crypto", reason = "Deprecated, known security issues" },
-    { crate = "openssl", reason = "Prefer ring/aws-lc-rs for this project" },
+    # Wrapper exception: dioxus-desktop's websocket stack (tungstenite ->
+    # native-tls) links the system TLS on Linux; that never touches vault
+    # crypto, which stays on ring/aws-lc-rs.
+    { crate = "openssl", reason = "Prefer ring/aws-lc-rs for this project", wrappers = ["native-tls"] },
 
     # Old rand versions with known issues
     { crate = "rand@<0.7", reason = "Old version with known issues" },

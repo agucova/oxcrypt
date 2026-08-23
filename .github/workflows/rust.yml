@@ -69,6 +69,8 @@ jobs:
         uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Triaged advisories - justifications live in deny.toml [advisories.ignore]
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0194,RUSTSEC-2026-0195
 
   # =============================================================================
   # MSRV Check - Verify minimum supported Rust version

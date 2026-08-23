@@ -1,0 +1,13 @@
+# cargo-audit configuration
+# Keep in sync with the [advisories] ignore list in deny.toml (which carries
+# the full justifications) and the audit-check `ignore` input in rust.yml.
+
+[advisories]
+ignore = [
+    # rsa Marvin attack - RSA pulled in by jsonwebtoken's rust_crypto feature
+    # but unused (vault JWTs are HMAC-only); no fixed version exists
+    "RUSTSEC-2023-0071",
+    # quick-xml DoS - bench-only via pprof -> inferno; no attacker-controlled input
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]
