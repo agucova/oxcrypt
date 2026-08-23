@@ -14,6 +14,21 @@ use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+/// Selects a non-default macFUSE mounting backend, from `OXCRYPT_MACFUSE_BACKEND`.
+///
+/// macFUSE 5.1+ can mount through FSKit instead of its kernel extension via
+/// `-o backend=fskit`, so setting this to `fskit` gives kernel-extension-free
+/// mounts. FSKit volumes are restricted to `/Volumes`, always open files
+/// read/write, and do not support the FUSE notification API used for kernel
+/// cache invalidation, so it is opt-in rather than the default.
+#[cfg(target_os = "macos")]
+fn macfuse_backend_option() -> Option<MountOption> {
+    std::env::var("OXCRYPT_MACFUSE_BACKEND")
+        .ok()
+        .filter(|backend| !backend.is_empty())
+        .map(|backend| MountOption::CUSTOM(format!("backend={backend}")))
+}
+
 /// Handle to a FUSE-mounted filesystem.
 ///
 /// Wraps the fuser `BackgroundSession`. Dropping this handle triggers unmount.
@@ -404,6 +419,7 @@ impl MountBackend for FuseBackend {
             options.push(MountOption::CUSTOM(format!("volname={vault_id}")));
             // Auto-eject after 30s if daemon stops responding (prevents ghost mounts)
             options.push(MountOption::CUSTOM("daemon_timeout=30".to_string()));
+            options.extend(macfuse_backend_option());
         }
 
         // Mount the filesystem with timeout protection
@@ -530,6 +546,7 @@ impl MountBackend for FuseBackend {
             mount_options.push(MountOption::CUSTOM(format!("volname={vault_id}")));
             // Auto-eject after 30s if daemon stops responding (prevents ghost mounts)
             mount_options.push(MountOption::CUSTOM("daemon_timeout=30".to_string()));
+            mount_options.extend(macfuse_backend_option());
         }
 
         // Mount the filesystem with timeout protection
