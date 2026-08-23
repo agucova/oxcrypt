@@ -34,19 +34,31 @@ fn get_test_master_key() -> oxcrypt_core::crypto::MasterKey {
 // ==================== Basic Operation Tests ====================
 
 #[tokio::test]
-async fn test_async_list_files_root() {
+async fn test_async_list_files_in_subdir() {
     let vault_path = test_vault_path();
     let master_key = get_test_master_key();
 
     let ops = VaultOperationsAsync::new(&vault_path, Arc::new(master_key));
 
+    // The fixture vault keeps its files inside a subdirectory, so walk into it;
+    // this exercises directory resolution and filename decryption together.
+    let dirs = ops
+        .list_directories(&DirId::root())
+        .await
+        .expect("Failed to list directories");
+    let subdir = dirs
+        .first()
+        .expect("Expected a directory in test vault root");
+
     let files = ops
-        .list_files(&DirId::root())
+        .list_files(&subdir.directory_id)
         .await
         .expect("Failed to list files");
 
-    // The test vault should have some files in root
-    assert!(!files.is_empty(), "Expected files in test vault root");
+    assert!(
+        !files.is_empty(),
+        "Expected files in test vault subdirectory"
+    );
 }
 
 #[tokio::test]
@@ -77,13 +89,17 @@ async fn test_async_from_sync() {
     let async_ops =
         VaultOperationsAsync::from_sync(&sync_ops).expect("Failed to create async ops from sync");
 
-    // Should work the same
-    let files = async_ops
-        .list_files(&DirId::root())
+    // Should see the same root entries as the sync ops
+    let async_dirs = async_ops
+        .list_directories(&DirId::root())
         .await
-        .expect("Failed to list files");
+        .expect("Failed to list directories");
+    let sync_dirs = sync_ops
+        .list_directories(&DirId::root())
+        .expect("Failed to list directories (sync)");
 
-    assert!(!files.is_empty());
+    assert!(!async_dirs.is_empty());
+    assert_eq!(async_dirs.len(), sync_dirs.len());
 }
 
 // ==================== Round-Trip Tests ====================
