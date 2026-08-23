@@ -201,13 +201,15 @@ impl NfsBackend {
     }
 
     #[cfg(target_os = "linux")]
-    fn is_mounted(path: &Path) -> bool {
+    #[allow(clippy::unused_self)]
+    fn is_mounted(&self, path: &Path) -> bool {
         let output = Command::new("mountpoint").args(["-q"]).arg(path).status();
         matches!(output, Ok(status) if status.success())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    fn is_mounted(_path: &Path) -> bool {
+    #[allow(clippy::unused_self)]
+    fn is_mounted(&self, _path: &Path) -> bool {
         false
     }
 
@@ -257,8 +259,7 @@ impl NfsBackend {
         // mount.nfs -o user,noacl,nolock,vers=3,tcp,wsize=1048576,rsize=131072,actimeo=120,port={PORT},mountport={PORT} localhost:/ {MOUNTPOINT}
         let port_str = port.to_string();
         let options = format!(
-            "user,noacl,nolock,vers=3,tcp,wsize=1048576,rsize=131072,actimeo=120,port={},mountport={}",
-            port_str, port_str
+            "user,noacl,nolock,vers=3,tcp,wsize=1048576,rsize=131072,actimeo=120,port={port_str},mountport={port_str}"
         );
 
         debug!(
@@ -287,8 +288,7 @@ impl NfsBackend {
                 format!("exit code: {}", output.status)
             };
             Err(MountError::Mount(std::io::Error::other(format!(
-                "mount.nfs failed: {}",
-                error_msg
+                "mount.nfs failed: {error_msg}"
             ))))
         }
     }

@@ -35,21 +35,11 @@ oxcrypt-mount = { path = "../oxcrypt-mount" }
 oxcrypt-fuse = { path = "../oxcrypt-fuse" }
 zip = "2"
 
-# fuser platform-specific: macfuse-4-compat required on macOS for rename fix
-[target.'cfg(target_os = "linux")'.dependencies]
-fuser = { version = "0.16", features = ["abi-7-23"] }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-fuser = { version = "0.16", features = ["libfuse", "abi-7-23", "macfuse-4-compat"] }
-
 # WebDAV backend
 oxcrypt-webdav = { path = "../oxcrypt-webdav" }
 
 # NFS backend
 oxcrypt-nfs = { path = "../oxcrypt-nfs" }
-
-# File Provider backend (macOS only, optional)
-oxcrypt-fileprovider = { path = "../oxcrypt-fileprovider", optional = true }
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "signal", "sync", "macros", "fs", "io-util"] }
@@ -85,8 +75,17 @@ dirs = "6"
 sha2 = "0.10"
 tar = "0.4"
 flate2 = "1"
-zip = "2"
 hex = "0.4.3"
+
+# fuser platform-specific: macfuse-4-compat required on macOS for rename fix
+[target.'cfg(target_os = "linux")'.dependencies]
+fuser = { version = "0.16", features = ["abi-7-23"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+fuser = { version = "0.16", features = ["libfuse", "abi-7-23", "macfuse-4-compat"] }
+
+# File Provider backend (macOS only, optional)
+oxcrypt-fileprovider = { path = "../oxcrypt-fileprovider", optional = true }
 
 # FSKit (macOS 15.4+ only)
 # Note: oxbench uses a stub FSKit backend since the full implementation
