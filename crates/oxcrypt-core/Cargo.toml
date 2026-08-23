@@ -71,8 +71,7 @@ rand_chacha = "0.9"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "test-util", "time"] }
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 wycheproof = "0.6"
-# TODO: Switch to published crate once available (timing-oracle = "0.1")
-timing-oracle = { path = "../../../timing-oracle/crates/timing-oracle" }
+tacet = "0.4"
 
 [[bench]]
 name = "directory_operations"

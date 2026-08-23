@@ -1,4 +1,4 @@
-//! Timing leak detection tests using timing-oracle.
+//! Timing leak detection tests using tacet.
 //!
 //! These tests verify that security-critical operations run in constant time
 //! using Bayesian statistical analysis with probability-based results.
@@ -27,7 +27,7 @@
 
 use ring::hmac;
 use subtle::ConstantTimeEq;
-use timing_oracle::{helpers::InputPair, AttackerModel, Outcome, TimingOracle};
+use tacet::{AttackerModel, Outcome, TimingOracle, helpers::InputPair};
 
 /// RFC 3394 integrity check IV (from RFC 3394 Section 2.2.3.1)
 const IV_3394: [u8; 8] = [0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6];
@@ -153,6 +153,9 @@ fn print_outcome(name: &str, outcome: &Outcome) {
                 "  {} UNMEASURABLE: platform={}, recommendation={}",
                 name, platform, recommendation
             );
+        }
+        Outcome::Research(research) => {
+            println!("  {} RESEARCH: {:?}", name, research);
         }
     }
 }
