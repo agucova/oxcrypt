@@ -18,14 +18,13 @@ rustflags = [
   "--cfg", "tokio_unstable"  # Enable tokio-console task introspection
 ]
 
-# Linux x86_64 - mold works great here
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
-
-# Linux ARM64 - mold works great here
+# Linux ARM64
 [target.aarch64-unknown-linux-gnu]
 rustflags = [
-  "-C", "link-arg=-fuse-ld=mold",
   "--cfg", "aes_armv8",       # Enable hardware AES (ARMv8 Crypto Extensions)
   "--cfg", "polyval_armv8",   # Enable hardware POLYVAL (PMULL instructions)
 ]
+
+# Note: the mold linker is NOT configured here because this file is committed
+# and would break builds on machines without mold (e.g. CI runners). The
+# devenv shell opts into mold on Linux via CARGO_TARGET_*_RUSTFLAGS env vars.

@@ -144,6 +144,13 @@ in
   env = {
     RUST_BACKTRACE = "1";
     RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";  # Enable sccache for faster rebuilds
+  } // lib.optionalAttrs pkgs.stdenv.isLinux {
+    # Use the mold linker inside the dev shell (kept out of the committed
+    # .cargo/config.toml so builds work on machines without mold, e.g. CI).
+    # These env vars override the config file's target rustflags entirely,
+    # so the aarch64 cfg flags are repeated here.
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS = "-C link-arg=-fuse-ld=mold";
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS = "-C link-arg=-fuse-ld=mold --cfg aes_armv8 --cfg polyval_armv8";
   } // lib.optionalAttrs pkgs.stdenv.isDarwin {
     PKG_CONFIG_PATH = "/usr/local/lib/pkgconfig";
     # Use Xcode SDK for Swift builds (FSKit requires macOS 26.0+ SDK)
