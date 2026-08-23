@@ -1,4 +1,9 @@
 inputs:
+  # Pin devenv modules to the installed CLI version — unpinned `devenv update`
+  # pulls main-branch modules that require primops newer CLIs may not have
+  # (e.g. dotenv's loadDotenv). Bump this ref when upgrading the devenv CLI.
+  devenv:
+    url: github:cachix/devenv/v2.2.1?dir=src/modules
   nixpkgs:
     url: github:NixOS/nixpkgs/nixpkgs-unstable
   rust-overlay:
