@@ -39,7 +39,11 @@ jobs:
         with:
           shared-key: clippy
       - name: Install FUSE (for oxcrypt-fuse)
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
       - name: Run Clippy (cross-platform crates)
         # Exclude macOS-only crates and GUI (needs webkit2gtk on Linux)
         run: |
@@ -87,7 +91,11 @@ jobs:
         with:
           shared-key: msrv
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
       - name: Check MSRV (cross-platform crates)
         run: |
           cargo check --workspace \
@@ -164,7 +172,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
 
       - name: Build workspace
         run: |
@@ -206,7 +218,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
 
       - name: Run stress tests (--profile stress)
         run: |
@@ -238,7 +254,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
       - name: Build (no default features)
         run: |
           cargo build --no-default-features --workspace \
@@ -496,7 +516,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
 
       - name: Build oxcrypt-fuse (release)
         run: cargo build --release -p oxcrypt-fuse
@@ -648,7 +672,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
 
       - name: Run full CI suite (--profile ci)
         run: |
@@ -687,7 +715,11 @@ jobs:
         with:
           tool: cargo-llvm-cov,nextest
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
 
       - name: Generate coverage report (unit + integration)
         run: |
@@ -728,7 +760,11 @@ jobs:
         with:
           shared-key: docs
       - name: Install FUSE
-        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+          # FUSE tests mount with allow_other, which libfuse only permits
+          # when user_allow_other is enabled system-wide
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
       - name: Build documentation
         run: |
           cargo doc --workspace --no-deps \
