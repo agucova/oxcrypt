@@ -388,7 +388,8 @@ impl MountBackend for FuseBackend {
         // Get pointer to notifier cell that we can use after fs is moved
         let notifier_cell_ptr: *const std::sync::OnceLock<fuser::Notifier> = fs.notifier_cell();
 
-        // Configure mount options
+        // Configure mount options (mutated only in the macOS-specific block below)
+        #[allow(unused_mut)]
         let mut options = vec![
             MountOption::FSName(format!("cryptomator:{vault_id}")),
             MountOption::Subtype("oxcrypt".to_string()),
@@ -515,7 +516,8 @@ impl MountBackend for FuseBackend {
         // Get pointer to notifier cell that we can use after fs is moved
         let notifier_cell_ptr: *const std::sync::OnceLock<fuser::Notifier> = fs.notifier_cell();
 
-        // Configure mount options
+        // Configure mount options (mutated only in the macOS-specific block below)
+        #[allow(unused_mut)]
         let mut mount_options = vec![
             MountOption::FSName(format!("cryptomator:{vault_id}")),
             MountOption::Subtype("oxcrypt".to_string()),

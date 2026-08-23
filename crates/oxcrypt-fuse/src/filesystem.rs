@@ -3186,6 +3186,9 @@ impl Filesystem for CryptomatorFS {
                 #[allow(clippy::cast_possible_truncation)]
                 let fragment_size = stat.fragment_size() as u32;
 
+                // statvfs counters are u32 on macOS but already u64 on Linux,
+                // where these conversions are identities
+                #[allow(clippy::useless_conversion)]
                 reply.statfs(
                     u64::from(stat.blocks()),           // Total blocks
                     u64::from(stat.blocks_free()),      // Free blocks

@@ -1370,9 +1370,12 @@ impl VaultOperations {
     /// Returns a [`VaultFileReaderSync`](crate::fs::streaming::VaultFileReaderSync)
     /// that can be used to read the file in chunks without loading it entirely into memory.
     ///
+    /// Requires the `async` feature because the streaming module lives there.
+    ///
     /// # Arguments
     /// * `directory_id` - The directory containing the file
     /// * `filename` - The name of the file
+    #[cfg(feature = "async")]
     #[instrument(level = "debug", skip(self), fields(dir_id = %directory_id.as_str(), filename = %filename))]
     pub fn open_file_reader_sync(
         &self,
