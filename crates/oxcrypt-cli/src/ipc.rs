@@ -112,6 +112,14 @@ pub fn get_stats(socket_path: &Path) -> Result<VaultStatsSnapshot> {
     }
 }
 
+/// Connect to a daemon's IPC socket and request stats.
+///
+/// Daemon IPC uses Unix domain sockets, which are unavailable here.
+#[cfg(not(unix))]
+pub fn get_stats(_socket_path: &Path) -> Result<VaultStatsSnapshot> {
+    anyhow::bail!("Mount daemon IPC is only supported on Unix platforms")
+}
+
 /// Check if daemon is alive.
 #[cfg(unix)]
 #[allow(dead_code)]
@@ -236,6 +244,34 @@ impl IpcServer {
 impl Drop for IpcServer {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.socket_path);
+    }
+}
+
+/// IPC server stub for platforms without Unix domain sockets.
+///
+/// Construction always fails; mounts simply run without a stats endpoint.
+#[cfg(not(unix))]
+pub struct IpcServer {
+    socket_path: PathBuf,
+}
+
+#[cfg(not(unix))]
+impl IpcServer {
+    pub fn new(_socket_path: PathBuf) -> Result<Self> {
+        anyhow::bail!("Mount daemon IPC is only supported on Unix platforms")
+    }
+
+    #[allow(dead_code)]
+    pub fn socket_path(&self) -> &Path {
+        &self.socket_path
+    }
+
+    #[allow(dead_code)]
+    pub fn try_accept<F>(&self, _handler: F) -> Result<Option<()>>
+    where
+        F: FnOnce(IpcRequest) -> IpcResponse,
+    {
+        Ok(None)
     }
 }
 

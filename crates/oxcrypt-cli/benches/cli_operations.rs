@@ -53,8 +53,7 @@ fn run_oxcrypt(vault_path: &PathBuf, args: &[&str]) -> bool {
         .arg(vault_path)
         .args(args)
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|o| o.status.success())
 }
 
 /// Run oxcrypt command with stdin and return output

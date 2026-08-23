@@ -426,6 +426,12 @@ fn read_password_from_stdin() -> Result<String> {
 }
 
 /// Read password from a file descriptor
+#[cfg(not(unix))]
+fn read_password_from_fd(_fd: i32) -> Result<String> {
+    anyhow::bail!("--password-fd is only supported on Unix platforms")
+}
+
+/// Read password from a file descriptor
 #[cfg(unix)]
 #[allow(unsafe_code)]
 fn read_password_from_fd(fd: i32) -> Result<String> {

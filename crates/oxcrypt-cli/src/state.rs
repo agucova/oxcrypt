@@ -351,6 +351,15 @@ pub fn is_process_alive(pid: u32) -> bool {
     kill(Pid::from_raw(pid as i32), None).is_ok()
 }
 
+/// Check if a process with the given PID is alive.
+///
+/// Liveness checks are not implemented off-Unix, so entries are treated
+/// as stale and cleaned up.
+#[cfg(not(unix))]
+pub fn is_process_alive(_pid: u32) -> bool {
+    false
+}
+
 #[cfg(windows)]
 pub fn is_process_alive(pid: u32) -> bool {
     // On Windows, try to open the process with minimal permissions
@@ -454,7 +463,7 @@ mod tests {
             true,
             None,
         );
-        assert!(!entry.id.is_empty());
+        assert_ne!(entry.id, "");
         assert_eq!(entry.backend, "fuse");
         assert_eq!(entry.pid, 12345);
         assert!(entry.is_daemon);
@@ -480,6 +489,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_is_process_alive() {
         // Current process should be alive
         let pid = std::process::id();
