@@ -154,6 +154,7 @@ async fn run_server(listener: TcpListener, handler: Arc<DavHandler>) {
 }
 
 /// Timeout for auto-mount operations (15 seconds).
+#[cfg(target_os = "macos")]
 const AUTO_MOUNT_TIMEOUT_SECS: u64 = 15;
 
 /// Attempt to auto-mount via macOS mount_webdav command.
