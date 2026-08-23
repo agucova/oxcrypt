@@ -10,9 +10,9 @@
 //! 2. **Get/GetMut**: Access the handle for read/write operations
 //! 3. **Remove**: Remove and return the handle when done
 
+use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use dashmap::mapref::one::{Ref, RefMut};
-use dashmap::DashMap;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -87,11 +87,11 @@ impl<V> HandleTable<u64, V> {
         let mut value = Some(value);
         loop {
             let id = next_id
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                     let next = current.checked_add(1).unwrap_or(1);
                     Some(next)
                 })
-                .expect("fetch_update always succeeds");
+                .expect("try_update always succeeds");
             if id == 0 {
                 continue;
             }

@@ -5,7 +5,7 @@
 Mount your encrypted vaults with FUSE, FSKit, WebDAV, or NFS—no Java runtime required.
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.90%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.95%2B-orange.svg)](https://www.rust-lang.org)
 
 ---
 
