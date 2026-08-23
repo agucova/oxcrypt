@@ -82,6 +82,9 @@ final-status-level = "flaky"
 # Enable KDF setup for all tests
 [[profile.default.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 # Mount backend tests run serially to avoid conflicts
@@ -121,6 +124,9 @@ status-level = "pass"
 
 [[profile.unit.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 [profile.unit.junit]
@@ -144,6 +150,9 @@ final-status-level = "flaky"
 
 [[profile.integration.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 [[profile.integration.overrides]]
@@ -174,6 +183,9 @@ status-level = "pass"
 
 [[profile.mounts.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 [[profile.mounts.overrides]]
@@ -204,6 +216,9 @@ status-level = "all"
 
 [[profile.stress.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 [[profile.stress.overrides]]
@@ -230,6 +245,9 @@ status-level = "all"
 
 [[profile.ci.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 [[profile.ci.overrides]]
@@ -258,6 +276,9 @@ status-level = "pass"
 
 [[profile.quick.scripts]]
 filter = 'all()'
+# The KDF setup script is a bash script; Windows relies on the
+# OXCRYPT_FAST_KDF env var set by the CI workflow instead
+platform = 'cfg(unix)'
 setup = 'kdf-setup'
 
 [profile.quick.junit]
