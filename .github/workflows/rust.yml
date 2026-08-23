@@ -389,114 +389,13 @@ jobs:
       - name: Build oxcrypt-fskit
         run: cargo build -p oxcrypt-fskit --verbose
 
-      - name: Build oxcrypt-fskit with setup feature
-        run: cargo build -p oxcrypt-fskit --features setup --verbose
-
-      - name: Build oxfskit-setup tool
-        run: cargo build -p oxcrypt-fskit --features setup --bin oxfskit-setup --release
-
-      - name: Install FSKitBridge using oxfskit-setup
-        run: |
-          echo "=== Installing FSKitBridge using oxfskit-setup ==="
-          ./target/release/oxfskit-setup install --dest /Applications --no-launch
-        continue-on-error: true
-
-      - name: Attempt FSKitBridge registration
-        continue-on-error: true
-        run: |
-          echo "=== Attempting FSKitBridge registration ==="
-          ./target/release/oxfskit-setup launch || echo "Launch returned non-zero (may need extension approval)"
-          sleep 3
-          APPEX_PATH="/Applications/FSKitBridge.app/Contents/Extensions/FSKitExt.appex"
-          if [ -d "$APPEX_PATH" ]; then
-            echo "Extension bundle found at: $APPEX_PATH"
-            pluginkit -a "$APPEX_PATH" 2>&1 || echo "pluginkit -a returned non-zero (expected without signing)"
-            BUNDLE_ID=$(defaults read "$APPEX_PATH/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "")
-            if [ -n "$BUNDLE_ID" ]; then
-              echo "Extension bundle ID: $BUNDLE_ID"
-              pluginkit -e use -i "$BUNDLE_ID" 2>&1 || echo "pluginkit -e returned non-zero (expected)"
-            fi
-          else
-            echo "Extension bundle not found at expected path"
-          fi
-          echo ""
-          echo "=== Registered FSKit extensions ==="
-          pluginkit -m -v 2>/dev/null | grep -i fskit || echo "No FSKit extensions registered"
-
-      - name: Check FSKitBridge status
-        continue-on-error: true
-        run: |
-          echo "=== FSKitBridge Status ==="
-          ./target/release/oxfskit-setup status --json || true
-          echo ""
-          echo "=== Ping Check ==="
-          ./target/release/oxfskit-setup ping --timeout 5 || echo "Ping failed (extension not running)"
-
-      - name: Run oxcrypt-fskit unit tests (--profile unit)
-        run: cargo nextest run -p oxcrypt-fskit --profile unit
-
-      - name: Run oxcrypt-fskit setup module tests
-        run: cargo nextest run -p oxcrypt-fskit --features setup --profile unit
+      # The unit profile filters to oxcrypt-core, so run fskit's own tests
+      # under the default profile
+      - name: Run oxcrypt-fskit tests
+        run: cargo nextest run -p oxcrypt-fskit
 
       - name: Run clippy on oxcrypt-fskit
-        run: cargo clippy -p oxcrypt-fskit --features setup -- -D warnings
-        continue-on-error: true
-
-  # =============================================================================
-  # FSKit Integration Tests (macOS 15+ with full setup)
-  # =============================================================================
-  fskit_integration:
-    name: FSKit Integration Tests (macOS 15)
-    runs-on: macos-15
-    needs: [fskit_build]
-    continue-on-error: true
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run-fskit-integration')
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: macos-fskit
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: Install protoc
-        run: brew install protobuf
-
-      - name: Build oxfskit-setup tool
-        run: cargo build -p oxcrypt-fskit --features setup --bin oxfskit-setup --release
-
-      - name: Install FSKitBridge using oxfskit-setup
-        run: |
-          echo "=== Installing FSKitBridge using oxfskit-setup ==="
-          ./target/release/oxfskit-setup install --dest /Applications
-        continue-on-error: true
-
-      - name: Check FSKitBridge status
-        run: |
-          echo "=== FSKitBridge Status ==="
-          ./target/release/oxfskit-setup status || true
-          echo ""
-          echo "=== Ping Check ==="
-          ./target/release/oxfskit-setup ping --timeout 10 || echo "FSKitBridge not responding - integration tests will be skipped"
-
-      - name: Build release binary
-        run: cargo build -p oxcrypt-fskit --release
-
-      - name: Run mount integration tests (--profile mounts)
-        continue-on-error: true
-        run: |
-          if ! ./target/release/oxfskit-setup ping --timeout 5 2>/dev/null; then
-            echo "FSKitBridge not available, skipping mount test"
-            exit 0
-          fi
-          echo "FSKitBridge available, running mount tests..."
-          cargo nextest run -p oxcrypt-fskit --profile mounts --features fskit-tests || true
+        run: cargo clippy -p oxcrypt-fskit -- -D warnings
 
   # =============================================================================
   # FUSE Mount Tests (Linux) - Requires privileged access

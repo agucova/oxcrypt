@@ -948,8 +948,7 @@ impl CryptoFilesystem {
             all_entries
                 .iter()
                 .position(|(name, _, _)| Self::name_to_cookie(name) == cookie)
-                .map(|idx| idx + 1)
-                .unwrap_or(all_entries.len()) // If not found, we're done
+                .map_or(all_entries.len(), |idx| idx + 1) // If not found, we're done
         };
 
         // Apply pagination
