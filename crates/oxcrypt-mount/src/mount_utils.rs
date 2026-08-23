@@ -302,10 +302,10 @@ pub fn is_on_fuse_mount(path: &Path) -> Option<PathBuf> {
             let fs_type = parts[2];
 
             // Check for FUSE filesystem types
-            if fs_type.starts_with("fuse") || fs_type == "fuseblk" {
-                if path_str.starts_with(mount_point) || path_str == mount_point {
-                    return Some(PathBuf::from(mount_point));
-                }
+            if (fs_type.starts_with("fuse") || fs_type == "fuseblk")
+                && (path_str.starts_with(mount_point) || path_str == mount_point)
+            {
+                return Some(PathBuf::from(mount_point));
             }
         }
     }

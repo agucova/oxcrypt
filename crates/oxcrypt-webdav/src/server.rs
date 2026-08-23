@@ -242,6 +242,8 @@ pub fn force_unmount_macos(mountpoint: &std::path::Path) -> Result<(), std::io::
 }
 
 #[cfg(target_os = "linux")]
+// async for signature parity with the macOS variant, which callers .await
+#[allow(clippy::unused_async)]
 pub async fn auto_mount_macos(
     _url: &str,
     _mountpoint: &std::path::Path,

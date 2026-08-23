@@ -308,11 +308,11 @@ fn unescape_mount_path(s: &str) -> String {
                 }
             }
 
-            if octal.len() == 3 {
-                if let Ok(code) = u8::from_str_radix(&octal, 8) {
-                    result.push(code as char);
-                    continue;
-                }
+            if octal.len() == 3
+                && let Ok(code) = u8::from_str_radix(&octal, 8)
+            {
+                result.push(code as char);
+                continue;
             }
 
             // Not a valid escape, keep the backslash and digits

@@ -399,7 +399,7 @@ fn force_unmount_path(mountpoint: &Path) -> Result<(), String> {
         let output = std::process::Command::new("umount")
             .args(["-f", "-l", &mountpoint.to_string_lossy()])
             .output()
-            .map_err(|e| format!("Failed to run umount: {}", e))?;
+            .map_err(|e| format!("Failed to run umount: {e}"))?;
 
         if output.status.success() {
             Ok(())

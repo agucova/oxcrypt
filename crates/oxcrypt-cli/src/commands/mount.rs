@@ -434,8 +434,8 @@ fn get_daemon_log_directory() -> PathBuf {
         #[cfg(target_os = "linux")]
         {
             // On Linux, prefer state dir for logs
-            if let Some(state_dir) =
-                directories::BaseDirs::new().and_then(|d| d.state_dir().map(|p| p.to_path_buf()))
+            if let Some(state_dir) = directories::BaseDirs::new()
+                .and_then(|d| d.state_dir().map(std::path::Path::to_path_buf))
             {
                 return state_dir.join("oxcrypt").join("logs");
             }

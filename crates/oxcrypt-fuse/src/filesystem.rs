@@ -4110,6 +4110,9 @@ impl Filesystem for CryptomatorFS {
     ///     // Atomically exchange source and target
     /// }
     /// ```
+    // The flags parameter is only inspected on Linux (RENAME_EXCHANGE /
+    // RENAME_NOREPLACE); the underscore keeps macOS builds warning-free.
+    #[allow(clippy::used_underscore_binding)]
     fn rename(
         &mut self,
         _req: &Request<'_>,
@@ -4191,51 +4194,38 @@ impl Filesystem for CryptomatorFS {
                 let dest_path = dest_parent_path.join(newname_str);
 
                 // Look up both inodes - both must exist for exchange
-                let src_inode = match self.inodes.get_inode(&src_path) {
-                    Some(inode) => inode,
-                    None => {
-                        self.vault_stats.record_error();
-                        self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::ENOENT);
-                        return;
-                    }
+                let Some(src_inode) = self.inodes.get_inode(&src_path) else {
+                    self.vault_stats.record_error();
+                    self.vault_stats.record_metadata_latency(start.elapsed());
+                    reply.error(libc::ENOENT);
+                    return;
                 };
 
-                let dest_inode = match self.inodes.get_inode(&dest_path) {
-                    Some(inode) => inode,
-                    None => {
-                        self.vault_stats.record_error();
-                        self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::ENOENT);
-                        return;
-                    }
+                let Some(dest_inode) = self.inodes.get_inode(&dest_path) else {
+                    self.vault_stats.record_error();
+                    self.vault_stats.record_metadata_latency(start.elapsed());
+                    reply.error(libc::ENOENT);
+                    return;
                 };
 
                 // Get entry kinds
-                let src_entry = match self.inodes.get(src_inode) {
-                    Some(e) => e,
-                    None => {
-                        self.vault_stats.record_error();
-                        self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::ENOENT);
-                        return;
-                    }
+                let Some(src_entry) = self.inodes.get(src_inode) else {
+                    self.vault_stats.record_error();
+                    self.vault_stats.record_metadata_latency(start.elapsed());
+                    reply.error(libc::ENOENT);
+                    return;
                 };
                 let src_is_dir = src_entry.kind.is_directory();
                 let src_is_file = src_entry.kind.is_file();
                 drop(src_entry);
 
-                let dest_entry = match self.inodes.get(dest_inode) {
-                    Some(e) => e,
-                    None => {
-                        self.vault_stats.record_error();
-                        self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::ENOENT);
-                        return;
-                    }
+                let Some(dest_entry) = self.inodes.get(dest_inode) else {
+                    self.vault_stats.record_error();
+                    self.vault_stats.record_metadata_latency(start.elapsed());
+                    reply.error(libc::ENOENT);
+                    return;
                 };
                 let dest_is_dir = dest_entry.kind.is_directory();
-                let dest_is_file = dest_entry.kind.is_file();
                 drop(dest_entry);
 
                 // Both must be same type (file/file or dir/dir)

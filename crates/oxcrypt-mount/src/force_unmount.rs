@@ -255,14 +255,14 @@ fn lazy_unmount_linux(mountpoint: &Path) -> Result<()> {
         .arg(mountpoint)
         .output();
 
-    if let Ok(output) = result {
-        if output.status.success() {
-            tracing::debug!(
-                "Lazy unmount via fusermount -uz succeeded for {}",
-                mountpoint.display()
-            );
-            return Ok(());
-        }
+    if let Ok(output) = result
+        && output.status.success()
+    {
+        tracing::debug!(
+            "Lazy unmount via fusermount -uz succeeded for {}",
+            mountpoint.display()
+        );
+        return Ok(());
     }
 
     // Fallback to umount -l

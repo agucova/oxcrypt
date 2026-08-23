@@ -202,10 +202,10 @@ fn unmount_linux(mountpoint: &PathBuf, force: bool) -> Result<()> {
 
     let output = cmd.output();
 
-    if let Ok(output) = output {
-        if output.status.success() {
-            return Ok(());
-        }
+    if let Ok(output) = output
+        && output.status.success()
+    {
+        return Ok(());
     }
 
     // Fall back to umount

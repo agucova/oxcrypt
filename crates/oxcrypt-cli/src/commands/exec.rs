@@ -178,7 +178,7 @@ pub fn execute(args: &Args, password: &str) -> Result<()> {
         }
         #[cfg(target_os = "linux")]
         {
-            let _ = std::process::Command::new("fusermount")
+            let _ = Command::new("fusermount")
                 .args(["-uz"])
                 .arg(&mountpoint)
                 .status();
