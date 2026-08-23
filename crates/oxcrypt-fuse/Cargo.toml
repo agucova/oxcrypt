@@ -86,7 +86,7 @@ criterion = { version = "0.8", features = ["html_reports"] }
 oxcrypt-mount = { path = "../oxcrypt-mount" }
 # Tokio with time feature for executor tests
 tokio = { version = "1", features = ["time"] }
-git2 = { version = "0.20.3", features = ["vendored-libgit2"], default-features = false }
+git2 = { version = "0.21", features = ["vendored-libgit2"], default-features = false }
 reqwest = { version = "0.13.1", features = ["blocking"] }
 zip = "7.0.0"
 
