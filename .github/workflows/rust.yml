@@ -116,8 +116,29 @@ jobs:
           shared-key: unit-${{ matrix.os }}
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
+      - name: Install macFUSE (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask macfuse
       - name: Run unit tests (--profile unit)
-        run: cargo nextest run --profile unit
+        if: runner.os != 'Windows'
+        # oxcrypt-desktop needs GUI system libraries (webkit2gtk, fontconfig)
+        # not present on runners; oxcrypt-fskit is macOS-only (objc2)
+        run: |
+          cargo nextest run --profile unit --workspace \
+            --exclude oxcrypt-fskit \
+            --exclude DELETED \
+            --exclude oxcrypt-desktop
+      - name: Run unit tests (Windows, --profile unit)
+        if: runner.os == 'Windows'
+        # Additionally exclude FUSE (fuser is unix-only) and oxcrypt-bench
+        # (depends on oxcrypt-fuse)
+        run: |
+          cargo nextest run --profile unit --workspace `
+            --exclude oxcrypt-fskit `
+            --exclude DELETED `
+            --exclude oxcrypt-desktop `
+            --exclude oxcrypt-fuse `
+            --exclude oxcrypt-bench
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v6
@@ -295,12 +316,15 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run unit tests (--profile unit)
-        # FUSE has no Windows support (fuser is unix-only), and oxcrypt-bench
-        # depends on oxcrypt-fuse
+        # FUSE has no Windows support (fuser is unix-only), oxcrypt-bench
+        # depends on oxcrypt-fuse, and fskit/desktop are macOS/GUI-only
         run: |
           cargo nextest run --profile unit --workspace `
             --exclude oxcrypt-fuse `
-            --exclude oxcrypt-bench
+            --exclude oxcrypt-bench `
+            --exclude oxcrypt-fskit `
+            --exclude oxcrypt-desktop `
+            --exclude DELETED
 
       - name: Build CLI (no mount backends)
         run: cargo build -p oxcrypt-cli --no-default-features --verbose
