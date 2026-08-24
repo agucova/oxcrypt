@@ -8,7 +8,11 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
-fn mount_test_vault() -> (PathBuf, impl Drop) {
+/// Mounts the shared test vault on a mount point unique to `test_name`.
+///
+/// Tests in this file run concurrently, so a shared mount point would have them
+/// mounting over one another and racing on the same directories.
+fn mount_test_vault(test_name: &str) -> (PathBuf, impl Drop) {
     use oxcrypt_fuse::FuseBackend;
     use oxcrypt_mount::MountBackend;
 
@@ -19,12 +23,12 @@ fn mount_test_vault() -> (PathBuf, impl Drop) {
         .unwrap()
         .join("test_vault");
 
-    let mount_point = PathBuf::from("/tmp/fuse_deletion_test");
+    let mount_point = PathBuf::from(format!("/tmp/fuse_deletion_test_{test_name}"));
     fs::create_dir_all(&mount_point).unwrap();
 
     let backend = FuseBackend::new();
     let handle = backend
-        .mount("deletion_test", &vault_path, "123456789", &mount_point)
+        .mount(test_name, &vault_path, "123456789", &mount_point)
         .expect("Failed to mount");
 
     // Brief delay to let mount settle
@@ -40,11 +44,13 @@ fn test_simple_directory_deletion() {
         .with_test_writer()
         .try_init();
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("simple_deletion");
 
     // Create a simple nested directory structure
-    let test_dir = mount_point.join("simple_nested");
-    fs::create_dir_all(&test_dir.join("a/b/c")).expect("Failed to create directories");
+    let test_dir = mount_point.join("simple_deletion_nested");
+    // Clean up any leftover test data from previous runs
+    let _ = fs::remove_dir_all(&test_dir);
+    fs::create_dir_all(test_dir.join("a/b/c")).expect("Failed to create directories");
 
     // Create a file at the deepest level
     fs::write(test_dir.join("a/b/c/file.txt"), b"test content").expect("Failed to write file");
@@ -64,6 +70,9 @@ fn test_simple_directory_deletion() {
             panic!("remove_dir_all failed: {}", e);
         }
     }
+
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_dir_all(&test_dir);
 }
 
 #[test]
@@ -73,11 +82,13 @@ fn test_git_like_directory_deletion() {
         .with_test_writer()
         .try_init();
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("git_like_deletion");
 
     // Create a git-like .git/objects structure
-    let git_dir = mount_point.join("git_test");
-    fs::create_dir_all(&git_dir).expect("Failed to create git_test directory");
+    let git_dir = mount_point.join("git_like_deletion_repo");
+    // Clean up any leftover test data from previous runs
+    let _ = fs::remove_dir_all(&git_dir);
+    fs::create_dir_all(&git_dir).expect("Failed to create git directory");
 
     // Create multiple object subdirectories (like git does)
     for prefix in ["00", "01", "ab", "cd", "ef"] {
@@ -124,6 +135,9 @@ fn test_git_like_directory_deletion() {
             panic!("remove_dir_all failed: {}", e);
         }
     }
+
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_dir_all(&git_dir);
 }
 
 #[test]
@@ -133,16 +147,18 @@ fn test_delete_and_recreate() {
         .with_test_writer()
         .try_init();
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("delete_and_recreate");
 
-    let test_dir = mount_point.join("recreate_test");
+    let test_dir = mount_point.join("delete_and_recreate_dir");
+    // Clean up any leftover test data from previous runs
+    let _ = fs::remove_dir_all(&test_dir);
 
     // Create, delete, and recreate multiple times
     for iteration in 0..3 {
         eprintln!("\n=== Iteration {} ===", iteration);
 
         // Create nested structure
-        fs::create_dir_all(&test_dir.join("nested/path")).unwrap();
+        fs::create_dir_all(test_dir.join("nested/path")).unwrap();
         fs::write(test_dir.join("nested/path/file.txt"), b"data").unwrap();
 
         assert!(test_dir.exists());
@@ -163,4 +179,7 @@ fn test_delete_and_recreate() {
         // Brief pause between iterations
         thread::sleep(Duration::from_millis(100));
     }
+
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_dir_all(&test_dir);
 }

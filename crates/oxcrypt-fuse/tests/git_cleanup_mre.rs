@@ -17,7 +17,11 @@ use std::thread;
 use std::time::Duration;
 use zip::ZipArchive;
 
-fn mount_test_vault() -> (PathBuf, impl Drop) {
+/// Mounts the shared test vault on a mount point unique to `test_name`.
+///
+/// Tests in this file run concurrently, so a shared mount point would have them
+/// mounting over one another and racing on the same directories.
+fn mount_test_vault(test_name: &str) -> (PathBuf, impl Drop) {
     use oxcrypt_fuse::FuseBackend;
     use oxcrypt_mount::MountBackend;
 
@@ -28,12 +32,12 @@ fn mount_test_vault() -> (PathBuf, impl Drop) {
         .unwrap()
         .join("test_vault");
 
-    let mount_point = PathBuf::from("/tmp/fuse_git_cleanup_mre");
+    let mount_point = PathBuf::from(format!("/tmp/fuse_git_cleanup_mre_{test_name}"));
     fs::create_dir_all(&mount_point).unwrap();
 
     let backend = FuseBackend::new();
     let handle = backend
-        .mount("git_cleanup_mre", &vault_path, "123456789", &mount_point)
+        .mount(test_name, &vault_path, "123456789", &mount_point)
         .expect("Failed to mount");
 
     thread::sleep(Duration::from_millis(100));
@@ -52,7 +56,7 @@ fn test_git_cleanup_like_benchmark() {
 
     eprintln!("\n=== Reproducing benchmark git workflow cleanup ===");
 
-    let (mount_point, handle) = mount_test_vault();
+    let (mount_point, handle) = mount_test_vault("like_benchmark");
 
     // Use unique directory name to avoid conflicts with previous test runs
     let timestamp = std::time::SystemTime::now()
@@ -190,7 +194,7 @@ fn test_git_cleanup_with_explicit_close() {
 
     eprintln!("\n=== Testing cleanup with explicit Repository drop ===");
 
-    let (mount_point, handle) = mount_test_vault();
+    let (mount_point, handle) = mount_test_vault("explicit_close");
 
     // Use unique directory name
     let timestamp = std::time::SystemTime::now()
@@ -256,7 +260,7 @@ fn test_git_cleanup_multiple_iterations() {
 
     eprintln!("\n=== Testing cleanup across multiple iterations (like benchmark) ===");
 
-    let (mount_point, handle) = mount_test_vault();
+    let (mount_point, handle) = mount_test_vault("multiple_iterations");
 
     // Run multiple iterations like the benchmark
     let base_timestamp = std::time::SystemTime::now()
