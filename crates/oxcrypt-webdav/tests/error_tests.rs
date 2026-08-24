@@ -154,8 +154,7 @@ async fn test_put_no_parent_behavior() {
     let status = resp.status();
     assert!(
         status == StatusCode::CONFLICT || status.is_success(),
-        "PUT with missing parent should return 409 or succeed, got {}",
-        status
+        "PUT with missing parent should return 409 or succeed, got {status}"
     );
 }
 
@@ -342,8 +341,7 @@ async fn test_path_traversal_parent_dir() {
         status == StatusCode::NOT_FOUND
             || status == StatusCode::BAD_REQUEST
             || status == StatusCode::FORBIDDEN,
-        "Path traversal attempt should be blocked, got {}",
-        status
+        "Path traversal attempt should be blocked, got {status}"
     );
 }
 
@@ -359,8 +357,7 @@ async fn test_path_traversal_encoded() {
         status == StatusCode::NOT_FOUND
             || status == StatusCode::BAD_REQUEST
             || status == StatusCode::FORBIDDEN,
-        "Encoded path traversal should be blocked, got {}",
-        status
+        "Encoded path traversal should be blocked, got {status}"
     );
 }
 
@@ -378,8 +375,7 @@ async fn test_path_traversal_put() {
             || status == StatusCode::BAD_REQUEST
             || status == StatusCode::FORBIDDEN
             || status == StatusCode::CONFLICT,
-        "PUT with path traversal should be blocked, got {}",
-        status
+        "PUT with path traversal should be blocked, got {status}"
     );
 }
 
@@ -396,8 +392,7 @@ async fn test_path_with_null_byte() {
         status == StatusCode::NOT_FOUND
             || status == StatusCode::BAD_REQUEST
             || status == StatusCode::FORBIDDEN,
-        "Null byte in path should be blocked, got {}",
-        status
+        "Null byte in path should be blocked, got {status}"
     );
 }
 
@@ -444,8 +439,7 @@ async fn test_double_slash_in_path() {
     let status = resp.status();
     assert!(
         status == StatusCode::OK || status == StatusCode::NOT_FOUND,
-        "Double slash should be normalized or return 404, got {}",
-        status
+        "Double slash should be normalized or return 404, got {status}"
     );
 }
 
@@ -461,8 +455,7 @@ async fn test_very_deep_path() {
     let status = resp.status();
     assert!(
         status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST,
-        "Very deep path should return 404 or 400, got {}",
-        status
+        "Very deep path should return 404 or 400, got {status}"
     );
 }
 
@@ -493,7 +486,6 @@ async fn test_put_zero_content_length() {
     let status = resp.status();
     assert!(
         status.is_success() || status == StatusCode::CREATED,
-        "PUT with zero content-length should succeed, got {}",
-        status
+        "PUT with zero content-length should succeed, got {status}"
     );
 }

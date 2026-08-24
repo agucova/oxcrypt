@@ -80,7 +80,7 @@ fn test_git2_init_and_commit() {
 
     eprintln!("Writing tree...");
     let tree_id = index.write_tree().expect("Failed to write tree");
-    eprintln!("Tree ID: {}", tree_id);
+    eprintln!("Tree ID: {tree_id}");
 
     eprintln!("Finding tree object...");
     let tree = repo.find_tree(tree_id).expect("Failed to find tree");
@@ -107,11 +107,11 @@ fn test_git2_multiple_iterations() {
 
     // Test 3 iterations to see if the first one behaves differently
     for iteration in 0..3 {
-        eprintln!("\n=== ITERATION {} ===", iteration);
+        eprintln!("\n=== ITERATION {iteration} ===");
 
         let (mount_point, handle) = mount_test_vault("multiple_iterations");
 
-        let repo_path = mount_point.join(format!("iter{}_repo", iteration));
+        let repo_path = mount_point.join(format!("iter{iteration}_repo"));
         // Clean up any leftover test data from previous runs
         let _ = fs::remove_dir_all(&repo_path);
         fs::create_dir_all(&repo_path).unwrap();
@@ -119,14 +119,14 @@ fn test_git2_multiple_iterations() {
         // Create test files
         for i in 0..5 {
             fs::write(
-                repo_path.join(format!("file{}.txt", i)),
-                format!("Content {}", i),
+                repo_path.join(format!("file{i}.txt")),
+                format!("Content {i}"),
             )
             .unwrap();
         }
 
         let repo = Repository::init(&repo_path)
-            .unwrap_or_else(|e| panic!("Iteration {}: Failed to init repo: {}", iteration, e));
+            .unwrap_or_else(|e| panic!("Iteration {iteration}: Failed to init repo: {e}"));
 
         {
             let mut config = repo.config().unwrap();
@@ -139,21 +139,13 @@ fn test_git2_multiple_iterations() {
         // This is the critical operation that fails on iteration 0 in the benchmark
         index
             .add_all(["*"].iter(), IndexAddOption::DEFAULT, None)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Iteration {}: Failed to add files to index: {}",
-                    iteration, e
-                )
-            });
+            .unwrap_or_else(|e| panic!("Iteration {iteration}: Failed to add files to index: {e}"));
 
         index.write().unwrap();
 
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap_or_else(|e| {
-            panic!(
-                "Iteration {}: Failed to find tree {}: {}",
-                iteration, tree_id, e
-            )
+            panic!("Iteration {iteration}: Failed to find tree {tree_id}: {e}")
         });
 
         let sig = Signature::now("Test User", "test@example.com").unwrap();
@@ -161,7 +153,7 @@ fn test_git2_multiple_iterations() {
         repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
             .unwrap();
 
-        eprintln!("Iteration {} completed successfully", iteration);
+        eprintln!("Iteration {iteration} completed successfully");
 
         // Leave the shared vault as we found it so a rerun starts from a clean state
         let _ = fs::remove_dir_all(&repo_path);

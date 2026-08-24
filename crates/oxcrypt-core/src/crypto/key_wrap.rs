@@ -385,8 +385,7 @@ mod tests {
         let result = unwrap_key(&invalid_ciphertext, &kek);
         assert!(
             matches!(result, Err(UnwrapError::InvalidCiphertextLength)),
-            "Expected InvalidCiphertextLength error, got {:?}",
-            result
+            "Expected InvalidCiphertextLength error, got {result:?}"
         );
 
         // Also test 18, 19, ... up to 23 bytes (all invalid lengths between 16 and 24)
@@ -395,9 +394,7 @@ mod tests {
             let result = unwrap_key(&ciphertext, &kek);
             assert!(
                 matches!(result, Err(UnwrapError::InvalidCiphertextLength)),
-                "Expected InvalidCiphertextLength for {} bytes, got {:?}",
-                len,
-                result
+                "Expected InvalidCiphertextLength for {len} bytes, got {result:?}"
             );
         }
     }

@@ -59,15 +59,15 @@ fn test_simple_directory_deletion() {
     assert!(test_dir.join("a/b/c/file.txt").exists());
 
     // Try to delete it
-    eprintln!("Attempting to delete {:?}", test_dir);
+    eprintln!("Attempting to delete {test_dir:?}");
     match fs::remove_dir_all(&test_dir) {
         Ok(()) => {
             eprintln!("✓ Deletion succeeded");
             assert!(!test_dir.exists(), "Directory should be deleted");
         }
         Err(e) => {
-            eprintln!("✗ Deletion failed: {}", e);
-            panic!("remove_dir_all failed: {}", e);
+            eprintln!("✗ Deletion failed: {e}");
+            panic!("remove_dir_all failed: {e}");
         }
     }
 
@@ -97,8 +97,8 @@ fn test_git_like_directory_deletion() {
 
         // Create a few "object" files in each subdirectory
         for i in 0..3 {
-            let object_file = objects_dir.join(format!("object{}.txt", i));
-            fs::write(&object_file, format!("object data {}", i))
+            let object_file = objects_dir.join(format!("object{i}.txt"));
+            fs::write(&object_file, format!("object data {i}"))
                 .expect("Failed to write object file");
         }
     }
@@ -112,14 +112,14 @@ fn test_git_like_directory_deletion() {
     assert!(git_dir.join(".git/objects/ab").exists());
 
     // Try to delete the entire git directory
-    eprintln!("Attempting to delete {:?}", git_dir);
+    eprintln!("Attempting to delete {git_dir:?}");
     match fs::remove_dir_all(&git_dir) {
         Ok(()) => {
             eprintln!("✓ Deletion succeeded");
             assert!(!git_dir.exists(), "Git directory should be deleted");
         }
         Err(e) => {
-            eprintln!("✗ Deletion failed: {}", e);
+            eprintln!("✗ Deletion failed: {e}");
             eprintln!("Error kind: {:?}", e.kind());
 
             // List what's still there
@@ -132,7 +132,7 @@ fn test_git_like_directory_deletion() {
                 }
             }
 
-            panic!("remove_dir_all failed: {}", e);
+            panic!("remove_dir_all failed: {e}");
         }
     }
 
@@ -155,7 +155,7 @@ fn test_delete_and_recreate() {
 
     // Create, delete, and recreate multiple times
     for iteration in 0..3 {
-        eprintln!("\n=== Iteration {} ===", iteration);
+        eprintln!("\n=== Iteration {iteration} ===");
 
         // Create nested structure
         fs::create_dir_all(test_dir.join("nested/path")).unwrap();
@@ -164,15 +164,15 @@ fn test_delete_and_recreate() {
         assert!(test_dir.exists());
 
         // Try to delete
-        eprintln!("Deleting {:?}", test_dir);
+        eprintln!("Deleting {test_dir:?}");
         match fs::remove_dir_all(&test_dir) {
             Ok(()) => {
-                eprintln!("✓ Iteration {} deletion succeeded", iteration);
+                eprintln!("✓ Iteration {iteration} deletion succeeded");
                 assert!(!test_dir.exists(), "Directory should be deleted");
             }
             Err(e) => {
-                eprintln!("✗ Iteration {} deletion failed: {}", iteration, e);
-                panic!("remove_dir_all failed on iteration {}: {}", iteration, e);
+                eprintln!("✗ Iteration {iteration} deletion failed: {e}");
+                panic!("remove_dir_all failed on iteration {iteration}: {e}");
             }
         }
 

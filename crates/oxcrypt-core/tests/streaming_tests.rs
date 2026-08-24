@@ -88,7 +88,7 @@ async fn test_streaming_write_read_roundtrip_empty() {
         .await
         .expect("Failed to read data");
 
-    assert!(data.is_empty());
+    assert_eq!(data, [] as [u8; 0]);
 }
 
 #[tokio::test]
@@ -253,7 +253,7 @@ async fn test_streaming_read_past_eof() {
         .read_range(100, 100)
         .await
         .expect("Failed to read range");
-    assert!(data.is_empty());
+    assert_eq!(data, [] as [u8; 0]);
 
     // Read starting near EOF
     let data = reader

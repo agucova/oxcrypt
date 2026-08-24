@@ -43,7 +43,7 @@ fn test_write_file_empty_content() {
     let decrypted = vault_ops
         .read_file(&DirId::root(), "empty.txt")
         .expect("Failed to read empty file");
-    assert!(decrypted.content.is_empty());
+    assert_eq!(decrypted.content, [] as [u8; 0]);
 }
 
 #[test]
@@ -1018,7 +1018,7 @@ fn test_rename_file_empty_file() {
     let decrypted = vault_ops
         .read_file(&DirId::root(), "still_empty.txt")
         .unwrap();
-    assert!(decrypted.content.is_empty());
+    assert_eq!(decrypted.content, [] as [u8; 0]);
 }
 
 #[test]
@@ -1671,7 +1671,10 @@ fn test_create_directory_by_path() {
         .create_directory_by_path("new_folder")
         .expect("Failed to create directory by path");
 
-    assert!(vault_ops.entry_type("new_folder") == Some(EntryType::Directory));
+    assert_eq!(
+        vault_ops.entry_type("new_folder"),
+        Some(EntryType::Directory)
+    );
 
     // Verify we can use the returned dir_id
     vault_ops
@@ -1688,7 +1691,10 @@ fn test_create_directory_by_path_nested() {
         .create_directory_by_path("parent/child")
         .expect("Failed to create nested directory by path");
 
-    assert!(vault_ops.entry_type("parent/child") == Some(EntryType::Directory));
+    assert_eq!(
+        vault_ops.entry_type("parent/child"),
+        Some(EntryType::Directory)
+    );
 }
 
 #[test]

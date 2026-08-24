@@ -149,13 +149,10 @@ fn print_outcome(name: &str, outcome: &Outcome) {
             platform,
             ..
         } => {
-            println!(
-                "  {} UNMEASURABLE: platform={}, recommendation={}",
-                name, platform, recommendation
-            );
+            println!("  {name} UNMEASURABLE: platform={platform}, recommendation={recommendation}");
         }
         Outcome::Research(research) => {
-            println!("  {} RESEARCH: {:?}", name, research);
+            println!("  {name} RESEARCH: {research:?}");
         }
     }
 }
@@ -164,7 +161,7 @@ fn main() {
     println!("timing-oracle Timing Side-Channel Tests");
     println!("========================================");
     println!("Testing security-critical constant-time operations");
-    println!("Threshold: {}ns", THRESHOLD_NS);
+    println!("Threshold: {THRESHOLD_NS}ns");
 
     let mut all_passed = true;
     let mut results = Vec::new();
@@ -202,8 +199,7 @@ fn main() {
         .count();
 
     println!(
-        "  Passed: {}, Failed: {}, Inconclusive: {}, Unmeasurable: {}",
-        passed, failed, inconclusive, unmeasurable
+        "  Passed: {passed}, Failed: {failed}, Inconclusive: {inconclusive}, Unmeasurable: {unmeasurable}"
     );
 
     if !all_passed {

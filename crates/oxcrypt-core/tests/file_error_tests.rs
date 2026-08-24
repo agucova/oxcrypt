@@ -188,8 +188,8 @@ fn test_header_decryption_with_context() {
 
     match result {
         Err(FileDecryptionError::HeaderDecryption { context }) => {
-            assert!(context.filename.as_deref() == Some("important.txt"));
-            assert!(context.dir_id.as_deref() == Some("test-dir-id"));
+            assert_eq!(context.filename.as_deref(), Some("important.txt"));
+            assert_eq!(context.dir_id.as_deref(), Some("test-dir-id"));
         }
         other => panic!("Expected HeaderDecryption error with context, got: {other:?}"),
     }
@@ -234,7 +234,7 @@ fn test_incomplete_chunk_with_context() {
             actual_size,
         }) => {
             assert_eq!(actual_size, 15);
-            assert!(context.filename.as_deref() == Some("test.bin"));
+            assert_eq!(context.filename.as_deref(), Some("test.bin"));
             // The chunk number should be set to 0 (first chunk)
             assert_eq!(context.chunk_number, Some(0));
         }
@@ -428,8 +428,8 @@ fn test_decrypt_file_with_context_dir_marker() {
         Err(FileError::Decryption(FileDecryptionError::InvalidHeader { reason, context })) => {
             assert!(reason.contains("dir.c9r"));
             // Context should still be set
-            assert!(context.filename.as_deref() == Some("test_dir"));
-            assert!(context.dir_id.as_deref() == Some("parent-id"));
+            assert_eq!(context.filename.as_deref(), Some("test_dir"));
+            assert_eq!(context.dir_id.as_deref(), Some("parent-id"));
         }
         other => panic!("Expected InvalidHeader error, got: {other:?}"),
     }
@@ -667,7 +667,7 @@ fn test_dir_id_backup_too_small() {
         Err(FileDecryptionError::InvalidHeader { reason, context }) => {
             assert!(reason.contains("dirid.c9r"));
             assert!(reason.contains("too small"));
-            assert!(context.filename.as_deref() == Some("dirid.c9r"));
+            assert_eq!(context.filename.as_deref(), Some("dirid.c9r"));
         }
         other => panic!("Expected InvalidHeader error, got: {other:?}"),
     }
@@ -700,7 +700,7 @@ fn test_dir_id_backup_wrong_key() {
 
     match result {
         Err(FileDecryptionError::HeaderDecryption { context }) => {
-            assert!(context.filename.as_deref() == Some("dirid.c9r"));
+            assert_eq!(context.filename.as_deref(), Some("dirid.c9r"));
         }
         other => panic!("Expected HeaderDecryption error, got: {other:?}"),
     }

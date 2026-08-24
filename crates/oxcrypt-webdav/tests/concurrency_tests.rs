@@ -36,10 +36,10 @@ async fn test_concurrent_reads_same_file() {
             match result {
                 Ok(data) => {
                     let hash = sha256(&data);
-                    assert_eq!(hash, expected, "Reader {} got corrupted data", i);
+                    assert_eq!(hash, expected, "Reader {i} got corrupted data");
                     Ok(())
                 }
-                Err((status, body)) => Err(format!("Reader {} failed: {} - {}", i, status, body)),
+                Err((status, body)) => Err(format!("Reader {i} failed: {status} - {body}")),
             }
         });
     }
@@ -62,7 +62,7 @@ async fn test_concurrent_reads_different_files() {
 
     for (i, content) in contents.iter().enumerate() {
         server
-            .put_ok(&format!("/file{}.bin", i), content.clone())
+            .put_ok(&format!("/file{i}.bin"), content.clone())
             .await;
     }
 
@@ -72,15 +72,15 @@ async fn test_concurrent_reads_different_files() {
         let client = client.clone();
         let expected = hashes[i];
         handles.spawn(async move {
-            let path = format!("/file{}.bin", i);
+            let path = format!("/file{i}.bin");
             let result = client.get_bytes(&path).await;
             match result {
                 Ok(data) => {
                     let hash = sha256(&data);
-                    assert_eq!(hash, expected, "File {} corrupted", i);
+                    assert_eq!(hash, expected, "File {i} corrupted");
                     Ok(())
                 }
-                Err((status, body)) => Err(format!("Read {} failed: {} - {}", i, status, body)),
+                Err((status, body)) => Err(format!("Read {i} failed: {status} - {body}")),
             }
         });
     }
@@ -108,17 +108,17 @@ async fn test_concurrent_writes_different_files() {
     for (i, content) in contents.into_iter().enumerate() {
         let client = client.clone();
         handles.spawn(async move {
-            let path = format!("/write{}.bin", i);
+            let path = format!("/write{i}.bin");
             let result = client.put(&path, content).await;
             match result {
                 Ok(status) => {
                     if status.is_success() || status == StatusCode::CREATED {
                         Ok(i)
                     } else {
-                        Err(format!("Write {} failed with status {}", i, status))
+                        Err(format!("Write {i} failed with status {status}"))
                     }
                 }
-                Err(e) => Err(format!("Write {} error: {}", i, e)),
+                Err(e) => Err(format!("Write {i} error: {e}")),
             }
         });
     }
@@ -131,9 +131,9 @@ async fn test_concurrent_writes_different_files() {
 
     // Verify all files exist with correct content
     for (i, expected_hash) in hashes.into_iter().enumerate() {
-        let path = format!("/write{}.bin", i);
+        let path = format!("/write{i}.bin");
         let data = server.get_bytes(&path).await.expect("Should exist");
-        assert_eq!(sha256(&data), expected_hash, "File {} has wrong content", i);
+        assert_eq!(sha256(&data), expected_hash, "File {i} has wrong content");
     }
 }
 
@@ -146,7 +146,7 @@ async fn test_concurrent_write_same_file_last_wins() {
     let mut handles = JoinSet::new();
     for i in 0..5 {
         let client = client.clone();
-        let content = format!("writer_{}_content", i).into_bytes();
+        let content = format!("writer_{i}_content").into_bytes();
         handles.spawn(async move {
             let _ = client.put("/contested.txt", content).await;
         });
@@ -154,7 +154,7 @@ async fn test_concurrent_write_same_file_last_wins() {
 
     // Wait for all writes
     while let Some(result) = handles.join_next().await {
-        let _ = result.expect("Task panicked");
+        let () = result.expect("Task panicked");
     }
 
     // File should exist with one of the written contents
@@ -165,8 +165,7 @@ async fn test_concurrent_write_same_file_last_wins() {
     let content = String::from_utf8_lossy(&data);
     assert!(
         content.starts_with("writer_") && content.ends_with("_content"),
-        "File should have valid content from one writer: {}",
-        content
+        "File should have valid content from one writer: {content}"
     );
 }
 
@@ -180,8 +179,8 @@ async fn test_rapid_create_delete_cycle() {
 
     // Rapid create-delete cycles
     for iteration in 0..10 {
-        let path = format!("/cycle{}.txt", iteration);
-        let content = format!("content_{}", iteration).into_bytes();
+        let path = format!("/cycle{iteration}.txt");
+        let content = format!("content_{iteration}").into_bytes();
 
         // Create
         server.put_ok(&path, content.clone()).await;
@@ -190,8 +189,7 @@ async fn test_rapid_create_delete_cycle() {
         let read_result = server.get_bytes(&path).await;
         assert!(
             read_result.is_ok(),
-            "Read after create failed on iteration {}",
-            iteration
+            "Read after create failed on iteration {iteration}"
         );
 
         // Delete
@@ -202,8 +200,7 @@ async fn test_rapid_create_delete_cycle() {
         assert_eq!(
             resp.status(),
             StatusCode::NOT_FOUND,
-            "File should be gone after delete on iteration {}",
-            iteration
+            "File should be gone after delete on iteration {iteration}"
         );
     }
 }
@@ -232,7 +229,7 @@ async fn test_concurrent_create_delete_same_file() {
 
     // Wait for all operations
     while let Some(result) = handles.join_next().await {
-        let _ = result.expect("Task panicked");
+        let () = result.expect("Task panicked");
     }
 
     // File may or may not exist - but server shouldn't crash
@@ -259,10 +256,10 @@ async fn test_concurrent_mkcol_same_path() {
     let mut success_count = 0;
 
     while let Some(result) = handles.join_next().await {
-        if let Ok(Ok(resp)) = result {
-            if resp.status().is_success() || resp.status() == StatusCode::CREATED {
-                success_count += 1;
-            }
+        if let Ok(Ok(resp)) = result
+            && (resp.status().is_success() || resp.status() == StatusCode::CREATED)
+        {
+            success_count += 1;
         }
     }
 
@@ -290,9 +287,9 @@ async fn test_concurrent_file_in_new_dir() {
     // Concurrent file creations in the new directory
     for i in 0..5 {
         let client = client.clone();
-        let content = format!("file_{}", i).into_bytes();
+        let content = format!("file_{i}").into_bytes();
         handles.spawn(async move {
-            let path = format!("/newdir/file{}.txt", i);
+            let path = format!("/newdir/file{i}.txt");
             client.put(&path, content).await
         });
     }
@@ -308,9 +305,9 @@ async fn test_concurrent_file_in_new_dir() {
 
     // All files should exist
     for i in 0..5 {
-        let path = format!("/newdir/file{}.txt", i);
+        let path = format!("/newdir/file{i}.txt");
         let resp = server.get(&path).await;
-        assert!(resp.status().is_success(), "File {} should exist", i);
+        assert!(resp.status().is_success(), "File {i} should exist");
     }
 }
 
@@ -351,7 +348,7 @@ async fn test_read_after_parallel_write() {
     }
 
     while let Some(result) = handles.join_next().await {
-        let _ = result.expect("Task panicked");
+        let () = result.expect("Task panicked");
     }
 
     // Final read should see updated content
@@ -379,9 +376,9 @@ async fn test_propfind_during_writes() {
     for i in 0..5 {
         let writer_client = client.clone();
         handles.spawn(async move {
-            let path = format!("/listing_test/file{}.txt", i);
+            let path = format!("/listing_test/file{i}.txt");
             let _ = writer_client
-                .put(&path, format!("content{}", i).into_bytes())
+                .put(&path, format!("content{i}").into_bytes())
                 .await;
         });
     }
@@ -398,17 +395,16 @@ async fn test_propfind_during_writes() {
     }
 
     while let Some(result) = handles.join_next().await {
-        let _ = result.expect("Task panicked");
+        let () = result.expect("Task panicked");
     }
 
     // All files should exist
     for i in 0..5 {
-        let path = format!("/listing_test/file{}.txt", i);
+        let path = format!("/listing_test/file{i}.txt");
         let resp = server.get(&path).await;
         assert!(
             resp.status().is_success(),
-            "File {} should exist after concurrent ops",
-            i
+            "File {i} should exist after concurrent ops"
         );
     }
 }
@@ -432,7 +428,7 @@ async fn test_parallel_large_uploads() {
     for (i, content) in contents.into_iter().enumerate() {
         let upload_client = client.clone();
         handles.spawn(async move {
-            let path = format!("/large{}.bin", i);
+            let path = format!("/large{i}.bin");
             upload_client.put(&path, content).await
         });
     }
@@ -448,9 +444,9 @@ async fn test_parallel_large_uploads() {
 
     // Verify content integrity
     for (i, expected_hash) in hashes.into_iter().enumerate() {
-        let path = format!("/large{}.bin", i);
+        let path = format!("/large{i}.bin");
         let data = server.get_bytes(&path).await.expect("Should exist");
-        assert_eq!(sha256(&data), expected_hash, "Large file {} corrupted", i);
+        assert_eq!(sha256(&data), expected_hash, "Large file {i} corrupted");
     }
 }
 
@@ -469,9 +465,9 @@ async fn test_many_small_files() {
     // Create many small files concurrently
     for i in 0..file_count {
         let upload_client = client.clone();
-        let content = format!("small_file_{}", i).into_bytes();
+        let content = format!("small_file_{i}").into_bytes();
         handles.spawn(async move {
-            let path = format!("/small{}.txt", i);
+            let path = format!("/small{i}.txt");
             upload_client.put(&path, content).await
         });
     }
@@ -482,8 +478,8 @@ async fn test_many_small_files() {
 
     // Verify all exist
     for i in 0..file_count {
-        let path = format!("/small{}.txt", i);
+        let path = format!("/small{i}.txt");
         let resp = server.get(&path).await;
-        assert!(resp.status().is_success(), "Small file {} should exist", i);
+        assert!(resp.status().is_success(), "Small file {i} should exist");
     }
 }

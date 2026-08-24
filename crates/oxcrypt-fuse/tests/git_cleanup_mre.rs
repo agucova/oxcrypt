@@ -63,7 +63,7 @@ fn test_git_cleanup_like_benchmark() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let workload_dir = mount_point.join(format!("git_workload_{}", timestamp));
+    let workload_dir = mount_point.join(format!("git_workload_{timestamp}"));
     let repo_path = workload_dir.join("repo");
 
     // Step 1: Extract ripgrep (exactly like benchmark)
@@ -137,7 +137,7 @@ fn test_git_cleanup_like_benchmark() {
 
     // Step 5: Immediately try to delete (exactly like benchmark cleanup)
     eprintln!("Step 5: Attempting cleanup (fs::remove_dir_all)...");
-    eprintln!("  Target: {:?}", workload_dir);
+    eprintln!("  Target: {workload_dir:?}");
 
     // Check what's in the directory before deletion
     eprintln!("  Checking directory contents before deletion:");
@@ -154,7 +154,7 @@ fn test_git_cleanup_like_benchmark() {
             assert!(!workload_dir.exists(), "Directory should be deleted");
         }
         Err(e) => {
-            eprintln!("  ✗ Cleanup FAILED: {}", e);
+            eprintln!("  ✗ Cleanup FAILED: {e}");
             eprintln!("  Error kind: {:?}", e.kind());
             eprintln!("  Raw OS error: {:?}", e.raw_os_error());
 
@@ -173,11 +173,11 @@ fn test_git_cleanup_like_benchmark() {
                 let objects_dir = git_dir.join("objects");
                 if let Ok(entries) = fs::read_dir(&objects_dir) {
                     let count = entries.count();
-                    eprintln!("    - {} subdirectories in .git/objects/", count);
+                    eprintln!("    - {count} subdirectories in .git/objects/");
                 }
             }
 
-            panic!("Cleanup failed: {}", e);
+            panic!("Cleanup failed: {e}");
         }
     }
 
@@ -201,7 +201,7 @@ fn test_git_cleanup_with_explicit_close() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let workload_dir = mount_point.join(format!("git_explicit_{}", timestamp));
+    let workload_dir = mount_point.join(format!("git_explicit_{timestamp}"));
     let repo_path = workload_dir.join("repo");
 
     fs::create_dir_all(&repo_path).unwrap();
@@ -242,8 +242,8 @@ fn test_git_cleanup_with_explicit_close() {
             eprintln!("  ✓ Cleanup succeeded with explicit close");
         }
         Err(e) => {
-            eprintln!("  ✗ Cleanup FAILED even with explicit close: {}", e);
-            panic!("Cleanup failed: {}", e);
+            eprintln!("  ✗ Cleanup FAILED even with explicit close: {e}");
+            panic!("Cleanup failed: {e}");
         }
     }
 
@@ -269,9 +269,9 @@ fn test_git_cleanup_multiple_iterations() {
         .as_secs();
 
     for iteration in 0..3 {
-        eprintln!("\n--- Iteration {} ---", iteration);
+        eprintln!("\n--- Iteration {iteration} ---");
 
-        let workload_dir = mount_point.join(format!("git_multi_{}_{}", base_timestamp, iteration));
+        let workload_dir = mount_point.join(format!("git_multi_{base_timestamp}_{iteration}"));
         let repo_path = workload_dir.join("repo");
 
         fs::create_dir_all(&repo_path).unwrap();
@@ -282,8 +282,8 @@ fn test_git_cleanup_multiple_iterations() {
 
             for i in 0..5 {
                 fs::write(
-                    repo_path.join(format!("file{}.txt", i)),
-                    format!("content {}", i),
+                    repo_path.join(format!("file{i}.txt")),
+                    format!("content {i}"),
                 )
                 .unwrap();
             }
@@ -307,11 +307,11 @@ fn test_git_cleanup_multiple_iterations() {
         eprintln!("  Attempting cleanup...");
         match fs::remove_dir_all(&workload_dir) {
             Ok(()) => {
-                eprintln!("  ✓ Iteration {} cleanup succeeded", iteration);
+                eprintln!("  ✓ Iteration {iteration} cleanup succeeded");
             }
             Err(e) => {
-                eprintln!("  ✗ Iteration {} cleanup FAILED: {}", iteration, e);
-                panic!("Cleanup failed on iteration {}: {}", iteration, e);
+                eprintln!("  ✗ Iteration {iteration} cleanup FAILED: {e}");
+                panic!("Cleanup failed on iteration {iteration}: {e}");
             }
         }
 

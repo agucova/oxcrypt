@@ -388,8 +388,7 @@ fn stress_read_cache_eviction() {
     let size = cache.weighted_size();
     assert!(
         size <= 128 * 1024, // Allow 2x for eviction lag
-        "cache exceeded bounds: {} bytes",
-        size
+        "cache exceeded bounds: {size} bytes"
     );
 }
 
@@ -603,8 +602,7 @@ fn stress_mixed_workload() {
     // Should complete in reasonable time (< 10s for 8000 ops)
     assert!(
         elapsed < Duration::from_secs(10),
-        "mixed workload too slow: {:?}",
-        elapsed
+        "mixed workload too slow: {elapsed:?}"
     );
 
     // All operations should be recorded

@@ -383,7 +383,7 @@ mod tests {
 
         let root = VaultPath::root();
         let components: Vec<_> = root.components().collect();
-        assert!(components.is_empty());
+        assert_eq!(components, [] as [&str; 0]);
     }
 
     #[test]

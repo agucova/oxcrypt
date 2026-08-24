@@ -93,7 +93,7 @@ fn test_file_content_patterns_snapshot() {
             first_16_bytes: if decrypted.content.len() >= 16 {
                 Some(format!("{:02x?}", &decrypted.content[..16]))
             } else {
-                Some(format!("{:02x?}", &decrypted.content))
+                Some(format!("{:02x?}", decrypted.content))
             },
         });
     }

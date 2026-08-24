@@ -148,7 +148,7 @@ async fn test_async_write_read_empty_file() {
         .await
         .expect("Failed to read empty file");
 
-    assert!(decrypted.content.is_empty());
+    assert_eq!(decrypted.content, [] as [u8; 0]);
 }
 
 #[tokio::test]
@@ -474,7 +474,7 @@ async fn test_safe_write_overwrite_content_to_empty() {
         .read_file(&DirId::root(), "full_to_empty.txt")
         .await
         .expect("Failed to read");
-    assert!(decrypted.content.is_empty());
+    assert_eq!(decrypted.content, [] as [u8; 0]);
 }
 
 #[tokio::test]

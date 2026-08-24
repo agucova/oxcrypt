@@ -84,7 +84,7 @@ fn timing_key_unwrap(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements - ONLY the ct_eq comparison
-    for (class, integrity_check) in classes.into_iter().zip(integrity_checks.into_iter()) {
+    for (class, integrity_check) in classes.into_iter().zip(integrity_checks) {
         runner.run_one(class, || {
             // This is exactly what key_wrap.rs does at line 178
             let result = integrity_check.ct_eq(&expected);
@@ -130,7 +130,7 @@ fn timing_hmac_verify(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements
-    for (class, tag) in classes.into_iter().zip(tags.into_iter()) {
+    for (class, tag) in classes.into_iter().zip(tags) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(hmac::verify(&key, &message, &tag));
         });
@@ -179,7 +179,7 @@ fn timing_aes_gcm_header(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements
-    for (class, header) in classes.into_iter().zip(headers.into_iter()) {
+    for (class, header) in classes.into_iter().zip(headers) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(decrypt_file_header(&header, &master_key));
         });
@@ -236,7 +236,7 @@ fn timing_aes_gcm_content(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements
-    for (class, ct) in classes.into_iter().zip(ciphertexts.into_iter()) {
+    for (class, ct) in classes.into_iter().zip(ciphertexts) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(decrypt_file_content(&ct, &content_key, &header_nonce));
         });
@@ -296,7 +296,7 @@ fn timing_aes_siv_filename(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements
-    for (class, name) in classes.into_iter().zip(encrypted_names.into_iter()) {
+    for (class, name) in classes.into_iter().zip(encrypted_names) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(decrypt_filename(&name, parent_dir_id, &master_key));
         });
@@ -356,7 +356,7 @@ fn timing_aes_siv_wrong_context(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements - decrypt with WRONG parent ID
-    for (class, name) in classes.into_iter().zip(encrypted_names.into_iter()) {
+    for (class, name) in classes.into_iter().zip(encrypted_names) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(decrypt_filename(&name, wrong_parent_id, &master_key));
         });
@@ -406,7 +406,7 @@ fn timing_ctrmac_header(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements
-    for (class, header) in classes.into_iter().zip(headers.into_iter()) {
+    for (class, header) in classes.into_iter().zip(headers) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(ctrmac_decrypt_header(
                 &header,
@@ -469,7 +469,7 @@ fn timing_ctrmac_content(runner: &mut CtRunner, rng: &mut BenchRng) {
     }
 
     // Run timing measurements
-    for (class, ct) in classes.into_iter().zip(ciphertexts.into_iter()) {
+    for (class, ct) in classes.into_iter().zip(ciphertexts) {
         runner.run_one(class, || {
             let _ = std::hint::black_box(ctrmac_decrypt_content(
                 &ct,
