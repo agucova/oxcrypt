@@ -4242,21 +4242,9 @@ impl Filesystem for CryptomatorFS {
     /// - `RENAME_NOREPLACE` (1): Fail with EEXIST if target already exists
     /// - `RENAME_EXCHANGE` (2): Atomically exchange source and target (both must exist)
     ///
-    /// # BUG (SPEC VIOLATION)
-    ///
-    /// This implementation ignores the `flags` parameter entirely:
-    /// - `RENAME_NOREPLACE` is not checked; target is always overwritten if it exists
-    /// - `RENAME_EXCHANGE` is not implemented; should atomically swap two entries
-    ///
-    /// **FIX**: Check flags and implement:
-    /// ```ignore
-    /// if flags & libc::RENAME_NOREPLACE != 0 {
-    ///     // Check if target exists and fail with EEXIST if so
-    /// }
-    /// if flags & libc::RENAME_EXCHANGE != 0 {
-    ///     // Atomically exchange source and target
-    /// }
-    /// ```
+    /// Both flags are honoured on Linux, which is the only platform whose kernel
+    /// sends them. Elsewhere the parameter is always empty and a rename replaces
+    /// an existing target, as POSIX requires.
     // The flags parameter is only inspected on Linux (RENAME_EXCHANGE /
     // RENAME_NOREPLACE); the underscore keeps macOS builds warning-free.
     #[allow(clippy::used_underscore_binding)]
@@ -4513,7 +4501,7 @@ impl Filesystem for CryptomatorFS {
             }
 
             // RENAME_NOREPLACE: fail if target exists (check file, dir, and symlink)
-            if _flags & libc::RENAME_NOREPLACE != 0 {
+            if _flags.contains(fuser::RenameFlags::RENAME_NOREPLACE) {
                 // Use O(1) lookups to check if target exists as file, directory, or symlink
                 let ops_file = self.ops_clone();
                 let dest_dir_id_file = dest_dir_id.clone();
