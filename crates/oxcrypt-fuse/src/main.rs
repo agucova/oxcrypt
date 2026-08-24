@@ -263,10 +263,14 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
         fuser::MountOption::DefaultPermissions,
     ];
 
-    // macFUSE's libfuse3 does not implement auto_unmount, and rejects the mount
-    // outright when it is passed. The session is unmounted explicitly on shutdown.
-    #[cfg(not(target_os = "macos"))]
-    options.push(fuser::MountOption::AutoUnmount);
+    // `auto_unmount` is deliberately not used. It is implemented by the setuid
+    // `fusermount` helper, which holds the mount itself, so it only works with a
+    // non-owner session ACL (`allow_other`). This filesystem reports world-readable
+    // modes (0o644 files, 0o755 directories) and enables `default_permissions`, so
+    // `allow_other` would let any local user read decrypted vault contents. The
+    // session is unmounted explicitly on shutdown instead; a mount left behind by a
+    // crash is recoverable with `fusermount -u`, leaked plaintext is not.
+    // macFUSE's libfuse3 rejects `auto_unmount` outright in any case.
 
     // On macOS, set the volume name shown in Finder, suppress the AppleDouble
     // sidecar files the OS would otherwise write into the encrypted vault, and
@@ -298,6 +302,8 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
 
     info!("Mounting filesystem (press Ctrl+C to unmount)");
 
+    // The session ACL stays at its default `SessionACL::Owner`, restricting the
+    // mount to the user who created it.
     let mut config = fuser::Config::default();
     config.mount_options = options;
 

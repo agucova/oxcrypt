@@ -31,6 +31,28 @@ fn macfuse_backend_option() -> Option<MountOption> {
         .map(|backend| MountOption::CUSTOM(format!("backend={backend}")))
 }
 
+/// Mount options that only apply on macOS: the volume name Finder displays,
+/// suppression of the AppleDouble sidecar files macOS writes for extended
+/// attributes (which would otherwise land inside the encrypted vault), a bound on
+/// how long the kernel waits on the daemon before ejecting the volume (which keeps
+/// an unresponsive mount from wedging into a ghost mount), and any macFUSE backend
+/// override. Empty on every other platform.
+#[cfg(target_os = "macos")]
+fn platform_mount_options(vault_id: &str) -> Vec<MountOption> {
+    let mut options = vec![
+        MountOption::CUSTOM(format!("volname={vault_id}")),
+        MountOption::CUSTOM("noappledouble".to_string()),
+        MountOption::CUSTOM("daemon_timeout=30".to_string()),
+    ];
+    options.extend(macfuse_backend_option());
+    options
+}
+
+#[cfg(not(target_os = "macos"))]
+fn platform_mount_options(_vault_id: &str) -> Vec<MountOption> {
+    Vec::new()
+}
+
 /// Handle to a FUSE-mounted filesystem.
 ///
 /// Wraps the fuser `BackgroundSession`. Dropping this handle triggers unmount.
@@ -283,8 +305,11 @@ impl FuseBackend {
         options: &[MountOption],
     ) -> Result<BackgroundSession, MountError> {
         let mountpoint = mountpoint.to_path_buf();
+        // The session ACL stays at its default `SessionACL::Owner`, restricting the
+        // mount to the user who created it.
         let mut config = fuser::Config::default();
         config.mount_options = options.to_vec();
+
         let (tx, rx) = mpsc::channel();
 
         // Spawn the mount in a separate thread so we can timeout
@@ -421,22 +446,16 @@ impl MountBackend for FuseBackend {
             MountOption::DefaultPermissions,
         ];
 
-        // macFUSE's libfuse3 does not implement auto_unmount, and rejects the mount
-        // outright when it is passed. Unmounting is handled explicitly instead.
-        #[cfg(not(target_os = "macos"))]
-        options.push(MountOption::AutoUnmount);
+        // `auto_unmount` is deliberately not used. It is implemented by the setuid
+        // `fusermount` helper, which holds the mount itself, so it only works with a
+        // non-owner session ACL (`allow_other`). This filesystem reports world-readable
+        // modes (0o644 files, 0o755 directories) and enables `default_permissions`, so
+        // `allow_other` would let any local user read decrypted vault contents.
+        // Unmounting is handled explicitly instead; a mount left behind by a crash is
+        // recoverable with `fusermount -u`, leaked plaintext is not. macFUSE's libfuse3
+        // rejects `auto_unmount` outright in any case.
 
-        // On macOS, set the volume name shown in Finder
-        #[cfg(target_os = "macos")]
-        {
-            options.push(MountOption::CUSTOM(format!("volname={vault_id}")));
-            // Suppress the AppleDouble sidecar files macOS writes for extended
-            // attributes, which would otherwise land inside the encrypted vault.
-            options.push(MountOption::CUSTOM("noappledouble".to_string()));
-            // Auto-eject after 30s if daemon stops responding (prevents ghost mounts)
-            options.push(MountOption::CUSTOM("daemon_timeout=30".to_string()));
-            options.extend(macfuse_backend_option());
-        }
+        options.extend(platform_mount_options(vault_id));
 
         // Mount the filesystem with timeout protection
         let session = self.spawn_mount_with_timeout(fs, &actual_mountpoint, &options)?;
@@ -554,22 +573,13 @@ impl MountBackend for FuseBackend {
             MountOption::Subtype("oxcrypt".to_string()),
         ];
 
-        // macFUSE's libfuse3 does not implement auto_unmount, and rejects the mount
-        // outright when it is passed. Unmounting is handled explicitly instead.
-        #[cfg(not(target_os = "macos"))]
-        mount_options.push(MountOption::AutoUnmount);
+        // `auto_unmount` is deliberately not used. It is implemented by the setuid
+        // `fusermount` helper, which holds the mount itself, so it only works with a
+        // non-owner session ACL (`allow_other`), which would expose decrypted vault
+        // contents to every local user. Unmounting is handled explicitly instead.
+        // macFUSE's libfuse3 rejects `auto_unmount` outright in any case.
 
-        // On macOS, set the volume name shown in Finder
-        #[cfg(target_os = "macos")]
-        {
-            mount_options.push(MountOption::CUSTOM(format!("volname={vault_id}")));
-            // Suppress the AppleDouble sidecar files macOS writes for extended
-            // attributes, which would otherwise land inside the encrypted vault.
-            mount_options.push(MountOption::CUSTOM("noappledouble".to_string()));
-            // Auto-eject after 30s if daemon stops responding (prevents ghost mounts)
-            mount_options.push(MountOption::CUSTOM("daemon_timeout=30".to_string()));
-            mount_options.extend(macfuse_backend_option());
-        }
+        mount_options.extend(platform_mount_options(vault_id));
 
         // Mount the filesystem with timeout protection
         let session = self.spawn_mount_with_timeout(fs, &actual_mountpoint, &mount_options)?;
