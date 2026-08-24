@@ -117,11 +117,16 @@ fn mount_test_vault_rw() -> Option<MountGuard> {
     // Mount with read-write support
     let options = vec![
         MountOption::FSName("cryptomator".to_string()),
-        MountOption::AutoUnmount,
         // No RO flag - mount read-write
     ];
 
-    let session = match fuser::spawn_mount2(fs, &mount_point, &options) {
+    // `auto_unmount` is not used: it requires a non-owner session ACL, which would
+    // make the decrypted mount readable by other local users. The session is
+    // unmounted when it is dropped at the end of the test.
+    let mut config = fuser::Config::default();
+    config.mount_options = options;
+
+    let session = match fuser::spawn_mount(fs, &mount_point, &config) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to mount: {}", e);

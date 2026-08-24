@@ -155,13 +155,15 @@ fn mount_test_vault_rw(mount_dir: &Path) -> Result<MountGuard, String> {
     let fs = CryptomatorFS::new(&vault_path, TEST_PASSWORD)
         .map_err(|e| format!("Failed to create CryptomatorFS: {}", e))?;
 
-    let options = vec![
-        MountOption::FSName("cryptomator".to_string()),
-        MountOption::AutoUnmount,
-        MountOption::AllowRoot,
-    ];
+    let options = vec![MountOption::FSName("cryptomator".to_string())];
 
-    let session = fuser::spawn_mount2(fs, mount_dir, &options)
+    // `auto_unmount` is not used: it requires a non-owner session ACL, which would
+    // make the decrypted mount readable by other local users. The session is
+    // unmounted when it is dropped at the end of the test.
+    let mut config = fuser::Config::default();
+    config.mount_options = options;
+
+    let session = fuser::spawn_mount(fs, mount_dir, &config)
         .map_err(|e| format!("Failed to mount: {}", e))?;
 
     let deadline = std::time::Instant::now() + MOUNT_READY_TIMEOUT;

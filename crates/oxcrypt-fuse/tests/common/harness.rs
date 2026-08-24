@@ -100,17 +100,17 @@ impl TestMount {
         let fs = CryptomatorFS::new(temp_vault.path(), TEST_PASSWORD)
             .map_err(|e| format!("Failed to create CryptomatorFS: {e}"))?;
 
-        let mut options = vec![
-            MountOption::FSName("cryptomator-test".to_string()),
-            MountOption::AutoUnmount,
-        ];
+        let mut options = vec![MountOption::FSName("cryptomator-test".to_string())];
 
         // On macOS, prevent AppleDouble files (._*) from being created.
         // macOS creates these when xattr operations fail with ENOTSUP.
         #[cfg(target_os = "macos")]
         options.push(MountOption::CUSTOM("noappledouble".to_string()));
 
-        let session = fuser::spawn_mount2(fs, &mount_path, &options)
+        let mut config = fuser::Config::default();
+        config.mount_options = options;
+
+        let session = fuser::spawn_mount(fs, &mount_path, &config)
             .map_err(|e| format!("Failed to mount: {e}"))?;
 
         // Wait for mount to become ready
@@ -159,15 +159,15 @@ impl TestMount {
         let fs = CryptomatorFS::new(&vault_path, SHARED_VAULT_PASSWORD)
             .map_err(|e| format!("Failed to create CryptomatorFS: {e}"))?;
 
-        let mut options = vec![
-            MountOption::FSName("cryptomator-test".to_string()),
-            MountOption::AutoUnmount,
-        ];
+        let mut options = vec![MountOption::FSName("cryptomator-test".to_string())];
         if read_only {
             options.push(MountOption::RO);
         }
 
-        let session = fuser::spawn_mount2(fs, &mount_path, &options)
+        let mut config = fuser::Config::default();
+        config.mount_options = options;
+
+        let session = fuser::spawn_mount(fs, &mount_path, &config)
             .map_err(|e| format!("Failed to mount: {e}"))?;
 
         // Wait for mount to become ready by checking for known vault content
