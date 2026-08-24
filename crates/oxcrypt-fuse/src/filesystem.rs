@@ -72,6 +72,69 @@ use tracing::{debug, error, info, trace, warn};
 /// Block size for filesystem statistics.
 const BLOCK_SIZE: u32 = 4096;
 
+/// Number of synthetic entries ("." and "..") pinned to the front of every
+/// directory listing. They are excluded from sorting so that a name ordering
+/// before "." cannot displace them.
+const SPECIAL_ENTRY_COUNT: usize = 2;
+
+/// Truncated hash of an entry name, used to anchor a readdir cookie to the entry
+/// that produced it.
+fn readdir_name_hash(name: &str) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    name.hash(&mut hasher);
+    hasher.finish() & 0x7FFF_FFFF
+}
+
+/// Offset cookie reported for the entry at `idx`, named `name`.
+///
+/// The cookie packs the entry's position in the canonical listing with a hash of
+/// its name: `hash << 32 | idx`. The position makes resuming an unchanged
+/// directory exact, while the name anchor lets a scan that raced with a
+/// modification find its place again instead of skipping entries.
+///
+/// Cookies are never 0, since the kernel reserves that for "start from the
+/// beginning".
+fn readdir_offset_at(idx: usize, name: &str) -> i64 {
+    let idx = u64::try_from(idx)
+        .unwrap_or(u64::from(u32::MAX))
+        .min(u64::from(u32::MAX));
+    let packed = (readdir_name_hash(name) << 32) | (idx + 1);
+    i64::try_from(packed).unwrap_or(i64::MAX)
+}
+
+/// Index to resume a directory scan from, given the kernel's `offset` cookie.
+///
+/// Offset 0 starts a fresh scan. Otherwise the cookie's packed position is
+/// trusted only when the name still hashes to the same anchor; if the listing
+/// shifted underneath us the anchor is searched for by name, and only when it
+/// has disappeared entirely does the scan restart. Restarting repeats entries,
+/// but never drops them, which is what recursive deletion depends on.
+fn readdir_resume_index<T>(offset: i64, entries: &[T], name_of: impl Fn(&T) -> &str) -> usize {
+    if offset == 0 {
+        return 0;
+    }
+    let Ok(packed) = u64::try_from(offset) else {
+        return 0;
+    };
+    let anchor_hash = packed >> 32;
+    let idx = (packed & 0xFFFF_FFFF) as usize;
+
+    if idx > 0
+        && let Some(entry) = entries.get(idx - 1)
+        && readdir_name_hash(name_of(entry)) == anchor_hash
+    {
+        return idx;
+    }
+
+    entries
+        .iter()
+        .position(|e| readdir_name_hash(name_of(e)) == anchor_hash)
+        .map_or(0, |found| found + 1)
+}
+
 /// Default file permissions (rw-r--r--).
 const DEFAULT_FILE_PERM: u16 = 0o644;
 
@@ -516,18 +579,14 @@ impl HazardousHandler {
             },
         ];
         all_entries.extend(entries);
+        // "." and ".." stay pinned at the front; everything after them is sorted so
+        // that every readdir path agrees on one canonical order.
+        all_entries[SPECIAL_ENTRY_COUNT..].sort_by(|a, b| a.name.cmp(&b.name));
 
-        let start_idx = if offset == 0 {
-            0
-        } else {
-            all_entries
-                .iter()
-                .position(|e| CryptomatorFS::name_to_offset(&e.name) == offset)
-                .map_or(0, |idx| idx + 1)
-        };
+        let start_idx = readdir_resume_index(offset, &all_entries, |e| e.name.as_str());
 
         let mut out = Vec::new();
-        for entry in all_entries.into_iter().skip(start_idx) {
+        for (idx, entry) in all_entries.into_iter().enumerate().skip(start_idx) {
             let entry_inode = if entry.name == "." {
                 ino
             } else if entry.name == ".." {
@@ -550,7 +609,7 @@ impl HazardousHandler {
                 self.inodes.get_or_insert_no_lookup_inc(&child_path, &kind)
             };
 
-            let next_offset = CryptomatorFS::name_to_offset(&entry.name);
+            let next_offset = readdir_offset_at(idx, &entry.name);
             out.push(DirectoryEntry {
                 inode: entry_inode,
                 offset: next_offset,
@@ -615,19 +674,14 @@ impl HazardousHandler {
         }))
         .collect();
 
-        all_entries.sort_by(|a, b| a.0.cmp(&b.0));
+        all_entries[SPECIAL_ENTRY_COUNT..].sort_by(|a, b| a.0.cmp(&b.0));
 
-        let start_idx = if offset == 0 {
-            0
-        } else {
-            all_entries
-                .iter()
-                .position(|e| CryptomatorFS::name_to_offset(&e.0) == offset)
-                .map_or(0, |idx| idx + 1)
-        };
+        let start_idx = readdir_resume_index(offset, &all_entries, |e| e.0.as_str());
 
         let mut out = Vec::new();
-        for (name, file_type, size, maybe_subdir_id) in all_entries.into_iter().skip(start_idx) {
+        for (idx, (name, file_type, size, maybe_subdir_id)) in
+            all_entries.into_iter().enumerate().skip(start_idx)
+        {
             let (entry_inode, attr) = if name == "." {
                 (ino, self.make_dir_attr(ino, None))
             } else if name == ".." {
@@ -662,7 +716,7 @@ impl HazardousHandler {
                 (entry_inode, attr)
             };
 
-            let next_offset = CryptomatorFS::name_to_offset(&name);
+            let next_offset = readdir_offset_at(idx, &name);
             out.push(DirectoryEntryPlus {
                 inode: entry_inode,
                 offset: next_offset,
@@ -1052,48 +1106,6 @@ impl CryptomatorFS {
             *cache = Some(Arc::new(sync_ops));
         }
         Ok(Arc::clone(cache.as_ref().unwrap()))
-    }
-
-    /// Converts an entry name to a stable offset cookie for readdir iteration.
-    ///
-    /// This uses a hash-based approach to encode entry names as i64 offsets, allowing
-    /// directory iteration to resume correctly even if the directory is modified between
-    /// readdir calls (e.g., during recursive deletion with fs::remove_dir_all).
-    ///
-    /// # Implementation
-    ///
-    /// - Returns 0 for special entries "." and ".." (these are always at the start)
-    /// - For other names, computes a 64-bit hash and ensures it's positive (bit 63 = 0)
-    /// - Hash collisions are extremely rare (1 in 2^63) and would only cause entries
-    ///   to be treated as duplicates (benign for readdir)
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// readdir(offset=0) -> returns ".", offset=0
-    ///                   -> returns "..", offset=0
-    ///                   -> returns "file1.txt", offset=hash("file1.txt")=12345
-    /// ... directory is modified, "file1.txt" is deleted ...
-    /// readdir(offset=12345) -> resumes after "file1.txt" (which no longer exists)
-    ///                       -> returns "file2.txt", offset=hash("file2.txt")=67890
-    /// ```
-    fn name_to_offset(name: &str) -> i64 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        // Hash the name to a u64, then convert to positive i64
-        let mut hasher = DefaultHasher::new();
-        name.hash(&mut hasher);
-        let hash = hasher.finish();
-
-        // Ensure positive by masking off the sign bit (top bit = 0)
-        // This gives us 2^63 possible offsets, which is more than enough
-        let masked = hash & 0x7FFF_FFFF_FFFF_FFFF;
-        let offset = i64::from_ne_bytes(masked.to_ne_bytes());
-
-        // Ensure offset is never 0, since offset=0 means "start from beginning"
-        // If hash happens to be 0, use 1 instead
-        if offset == 0 { 1 } else { offset }
     }
 
     /// Executes an async operation using the spawn+oneshot pattern.
@@ -2544,20 +2556,15 @@ impl Filesystem for CryptomatorFS {
                     .iter()
                     .map(|e| (e.name.clone(), e.file_type, e.dir_id.clone())),
             );
-            all_entries.sort_by(|a, b| a.0.cmp(&b.0));
+            all_entries[SPECIAL_ENTRY_COUNT..].sort_by(|a, b| a.0.cmp(&b.0));
 
             // Find starting position based on offset
-            let start_idx = if offset == 0 {
-                0
-            } else {
-                all_entries
-                    .iter()
-                    .position(|e| Self::name_to_offset(&e.0) == offset)
-                    .map_or(0, |idx| idx + 1)
-            };
+            let start_idx = readdir_resume_index(offset, &all_entries, |e| e.0.as_str());
 
             // Build response
-            for (name, file_type, maybe_subdir_id) in all_entries.into_iter().skip(start_idx) {
+            for (idx, (name, file_type, maybe_subdir_id)) in
+                all_entries.into_iter().enumerate().skip(start_idx)
+            {
                 let entry_inode = if name == "." {
                     ino
                 } else if name == ".." {
@@ -2599,10 +2606,9 @@ impl Filesystem for CryptomatorFS {
                     self.inodes.get_or_insert_no_lookup_inc(&entry_path, &kind)
                 };
 
-                let next_offset = Self::name_to_offset(&name);
                 if reply.add(
                     fuser::INodeNo(entry_inode),
-                    next_offset.cast_unsigned(),
+                    readdir_offset_at(idx, &name).cast_unsigned(),
                     file_type,
                     &name,
                 ) {
