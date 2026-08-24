@@ -4335,7 +4335,7 @@ impl Filesystem for CryptomatorFS {
         #[cfg(target_os = "linux")]
         {
             // RENAME_EXCHANGE: atomic swap of source and target
-            if _flags & libc::RENAME_EXCHANGE != 0 {
+            if _flags.contains(fuser::RenameFlags::RENAME_EXCHANGE) {
                 trace!("rename: handling RENAME_EXCHANGE");
 
                 // Build paths for both entries
@@ -4346,14 +4346,14 @@ impl Filesystem for CryptomatorFS {
                 let Some(src_inode) = self.inodes.get_inode(&src_path) else {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::ENOENT);
+                    reply.error(fuser::Errno::from_i32(libc::ENOENT));
                     return;
                 };
 
                 let Some(dest_inode) = self.inodes.get_inode(&dest_path) else {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::ENOENT);
+                    reply.error(fuser::Errno::from_i32(libc::ENOENT));
                     return;
                 };
 
@@ -4361,7 +4361,7 @@ impl Filesystem for CryptomatorFS {
                 let Some(src_entry) = self.inodes.get(src_inode) else {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::ENOENT);
+                    reply.error(fuser::Errno::from_i32(libc::ENOENT));
                     return;
                 };
                 let src_is_dir = src_entry.kind.is_directory();
@@ -4371,7 +4371,7 @@ impl Filesystem for CryptomatorFS {
                 let Some(dest_entry) = self.inodes.get(dest_inode) else {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::ENOENT);
+                    reply.error(fuser::Errno::from_i32(libc::ENOENT));
                     return;
                 };
                 let dest_is_dir = dest_entry.kind.is_directory();
@@ -4385,7 +4385,7 @@ impl Filesystem for CryptomatorFS {
                     );
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::EINVAL);
+                    reply.error(fuser::Errno::from_i32(libc::EINVAL));
                     return;
                 }
 
@@ -4408,7 +4408,7 @@ impl Filesystem for CryptomatorFS {
                         debug!("rename: RENAME_EXCHANGE cross-directory dir swap not supported");
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::EXDEV);
+                        reply.error(fuser::Errno::from_i32(libc::EXDEV));
                         return;
                     }
 
@@ -4498,13 +4498,15 @@ impl Filesystem for CryptomatorFS {
                         error!("rename: RENAME_EXCHANGE failed: {}", e);
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(crate::error::write_error_to_errno(&e));
+                        reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                            &e,
+                        )));
                     }
                     Err(exec_err) => {
                         error!("rename: RENAME_EXCHANGE exec error: {:?}", exec_err);
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(exec_err.to_errno());
+                        reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                     }
                 }
                 return;
@@ -4541,13 +4543,13 @@ impl Filesystem for CryptomatorFS {
                                     Ok(Err(e)) => {
                                         self.vault_stats.record_error();
                                         self.vault_stats.record_metadata_latency(start.elapsed());
-                                        reply.error(e.to_errno());
+                                        reply.error(fuser::Errno::from_i32(e.to_errno()));
                                         return;
                                     }
                                     Err(exec_err) => {
                                         self.vault_stats.record_error();
                                         self.vault_stats.record_metadata_latency(start.elapsed());
-                                        reply.error(exec_err.to_errno());
+                                        reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                         return;
                                     }
                                 }
@@ -4555,13 +4557,13 @@ impl Filesystem for CryptomatorFS {
                             Ok(Err(e)) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(e.to_errno());
+                                reply.error(fuser::Errno::from_i32(e.to_errno()));
                                 return;
                             }
                             Err(exec_err) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         }
@@ -4569,13 +4571,13 @@ impl Filesystem for CryptomatorFS {
                     Ok(Err(e)) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(e.to_errno());
+                        reply.error(fuser::Errno::from_i32(e.to_errno()));
                         return;
                     }
                     Err(exec_err) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(exec_err.to_errno());
+                        reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                         return;
                     }
                 };
@@ -4583,7 +4585,7 @@ impl Filesystem for CryptomatorFS {
                 if target_exists {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::EEXIST);
+                    reply.error(fuser::Errno::from_i32(libc::EEXIST));
                     return;
                 }
             }
@@ -4714,7 +4716,7 @@ impl Filesystem for CryptomatorFS {
         // Step 2: Handle overwrite semantics (POSIX rename replaces target if it exists)
         // Check if RENAME_NOREPLACE was set - if so, we already handled it above
         #[cfg(target_os = "linux")]
-        let noreplace = _flags & libc::RENAME_NOREPLACE != 0;
+        let noreplace = _flags.contains(fuser::RenameFlags::RENAME_NOREPLACE);
         #[cfg(not(target_os = "linux"))]
         let noreplace = false;
 
