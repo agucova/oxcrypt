@@ -16,7 +16,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # WebDAV server
-dav-server = "0.8"
+dav-server = { version = "0.8", default-features = false }
 
 # HTTP server
 hyper = { version = "1.5", features = ["server", "http1", "http2"] }

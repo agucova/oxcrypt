@@ -10,4 +10,13 @@ ignore = [
     # quick-xml DoS - bench-only via pprof -> inferno; no attacker-controlled input
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+    # atty unaligned read - dev-only via dudect-bencher -> clap 2.34;
+    # Windows-only code path, atty unmaintained with no fixed version
+    "RUSTSEC-2021-0145",
+    # glib VariantStrIter unsoundness - Linux-only GTK3 stack via
+    # dioxus-desktop; gtk3-rs is deprecated and pins glib 0.18, API unused
+    "RUSTSEC-2024-0429",
+    # rand 0.7 reentrant-logger unsoundness - build-script-only via
+    # selectors/phf_codegen; no custom logger, not the vault crypto RNG
+    "RUSTSEC-2026-0097",
 ]

@@ -31,6 +31,32 @@ ignore = [
     { id = "RUSTSEC-2026-0195", reason = "quick-xml DoS - bench-only via pprof/inferno, no attacker-controlled input" },
 ]
 
+# Informational "unsound" advisories are not evaluated by cargo-deny, so they
+# cannot be listed above (an entry there is dead config and emits
+# `advisory-not-detected`). They do surface in `cargo audit` and in GitHub's
+# Dependabot alerts, and are suppressed in .cargo/audit.toml. Triage:
+#
+# RUSTSEC-2021-0145 (atty, potential unaligned read) - atty 0.2.14 arrives
+#   through clap 2.34 -> dudect-bencher, a dev-dependency of oxcrypt-core used
+#   only by the benches/timing_leaks.rs constant-time harness. atty is
+#   unmaintained with no patched release; the unaligned read is in its Windows
+#   msys/cygwin TTY probe, which never runs on the Linux and macOS targets this
+#   workspace builds, and never in a shipped binary.
+#
+# RUSTSEC-2024-0429 (glib, VariantStrIter Iterator unsoundness) - glib 0.18.5
+#   is pinned by the gtk3-rs 0.18 stack (gtk/gdk/atk/webkit2gtk) that
+#   dioxus-desktop pulls in for its Linux webview and tray icon. The gtk crate
+#   is deprecated and stops at 0.18.2, so glib >= 0.20 is unreachable without
+#   dioxus dropping GTK3. VariantStrIter is a GVariant string-array iterator
+#   that oxcrypt never constructs, and the crates are Linux-only.
+#
+# RUSTSEC-2026-0097 (rand, unsound with a reentrant custom logger) - rand 0.7.3
+#   is a *build*-dependency: phf_generator 0.8 <- phf_codegen 0.8 <-
+#   selectors 0.24 (build script) <- kuchikiki <- wry <- dioxus-desktop. It only
+#   seeds perfect-hash tables at compile time. The unsoundness requires a custom
+#   `log` logger that reentrantly calls rand::rng(); build scripts install no
+#   logger. Vault crypto uses rand 0.9/0.10, never this copy.
+
 # =============================================================================
 # Licenses - ensure all dependencies are compatibly licensed
 # =============================================================================
