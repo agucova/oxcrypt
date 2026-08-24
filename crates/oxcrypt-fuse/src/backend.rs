@@ -17,10 +17,12 @@ use std::time::{Duration, Instant};
 /// Selects a non-default macFUSE mounting backend, from `OXCRYPT_MACFUSE_BACKEND`.
 ///
 /// macFUSE 5.1+ can mount through FSKit instead of its kernel extension via
-/// `-o backend=fskit`, so setting this to `fskit` gives kernel-extension-free
-/// mounts. FSKit volumes are restricted to `/Volumes`, always open files
-/// read/write, and do not support the FUSE notification API used for kernel
-/// cache invalidation, so it is opt-in rather than the default.
+/// `-o backend=fskit`, but that backend is unreachable from this crate:
+/// an FSKit-backed mount is driven by macFUSE's MFMount channel API and has
+/// no file descriptor, so `fuse_session_fd()` returns -1 and fuser rejects the
+/// mount. Only the kernel extension yields the descriptor fuser reads FUSE
+/// messages from. An unrecognised value silently falls back to the kernel
+/// extension, so `kext` is the only meaningful setting today.
 #[cfg(target_os = "macos")]
 fn macfuse_backend_option() -> Option<MountOption> {
     std::env::var("OXCRYPT_MACFUSE_BACKEND")
