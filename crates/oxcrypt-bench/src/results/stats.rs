@@ -13,6 +13,16 @@ use crate::bench::BenchmarkResult;
 use crate::config::{FileSize, Implementation, OperationType};
 use std::time::Duration;
 
+/// Bytes a single operation must move before a throughput figure describes
+/// bandwidth rather than latency.
+///
+/// A benchmark over one 32 KiB chunk spends most of its time opening the file,
+/// decrypting the header and making a round trip through the kernel. Dividing
+/// its bytes by its elapsed time yields a small number that looks like slow
+/// encryption but is really fixed per-operation cost, so no throughput is
+/// reported below this size.
+const MIN_BYTES_PER_OP_FOR_THROUGHPUT: u64 = 1024 * 1024;
+
 /// Computed statistics for a benchmark.
 #[derive(Debug, Clone)]
 pub struct BenchmarkStats {
@@ -112,16 +122,17 @@ pub fn compute_stats(result: &BenchmarkResult) -> BenchmarkStats {
     let p95 = percentile(&sorted, 95);
     let p99 = percentile(&sorted, 99);
 
-    // Calculate throughput (only for I/O benchmarks that track bytes)
-    let throughput = if result.bytes_processed > 0 {
+    // Throughput is only meaningful for I/O benchmarks that move enough bytes per
+    // operation to outweigh the fixed cost of performing one. Operation-focused
+    // benchmarks (file creation, deletion, metadata) move none at all.
+    let bytes_per_op = result.bytes_processed / samples.len() as u64;
+    let throughput = if bytes_per_op >= MIN_BYTES_PER_OP_FOR_THROUGHPUT {
         let total_time_secs = sum as f64 / 1_000_000_000.0;
         Some(Throughput {
             bytes_per_sec: result.bytes_processed as f64 / total_time_secs,
             ops_per_sec: samples.len() as f64 / total_time_secs,
         })
     } else {
-        // For operation-focused benchmarks (file creation, deletion, metadata, etc.)
-        // don't report throughput since they don't process bytes
         None
     };
 
@@ -169,4 +180,45 @@ fn percentile(sorted: &[u64], p: usize) -> u64 {
     // Linear interpolation between adjacent values
     let result = sorted[lo] as f64 * (1.0 - frac) + sorted[hi] as f64 * frac;
     result.round() as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn result_with(bytes_per_op: u64, ops: usize) -> BenchmarkResult {
+        let mut result = BenchmarkResult::new(
+            "test".to_string(),
+            OperationType::SequentialRead,
+            Implementation::OxidizedFuse,
+            None,
+        );
+        result.samples = vec![Duration::from_millis(1); ops];
+        result.bytes_processed = bytes_per_op * ops as u64;
+        result
+    }
+
+    #[test]
+    fn throughput_is_reported_for_large_operations() {
+        let stats = compute_stats(&result_with(4 * 1024 * 1024, 10));
+        let throughput = stats
+            .throughput
+            .expect("an operation moving megabytes should report throughput");
+        assert!(throughput.bytes_per_sec > 0.0);
+    }
+
+    #[test]
+    fn throughput_is_suppressed_for_single_chunk_operations() {
+        // 32 KiB is one encryption chunk: the timing is dominated by opening the
+        // file and one kernel round trip, so a bytes-per-second figure would
+        // describe latency rather than bandwidth.
+        let stats = compute_stats(&result_with(32 * 1024, 10));
+        assert!(stats.throughput.is_none());
+    }
+
+    #[test]
+    fn throughput_is_absent_when_no_bytes_are_moved() {
+        let stats = compute_stats(&result_with(0, 10));
+        assert!(stats.throughput.is_none());
+    }
 }
