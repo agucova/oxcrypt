@@ -801,8 +801,11 @@ pub struct CryptomatorFS {
     /// Open handle tracker for POSIX-compliant deferred deletion.
     open_handle_tracker: Arc<crate::handles::OpenHandleTracker>,
     /// Kernel notifier for cache invalidation (injected post-mount).
-    /// This is set by the backend after spawning the FUSE session.
-    notifier: OnceLock<fuser::Notifier>,
+    ///
+    /// The notifier only exists once a session has been spawned, which consumes
+    /// the filesystem, so the cell is shared rather than owned: the caller keeps
+    /// a handle to it across the move and fills it in afterwards.
+    notifier: Arc<OnceLock<fuser::Notifier>>,
     /// Tracks current WriteBuffer sizes per inode for mmap consistency.
     ///
     /// When a file is opened for writing, the WriteBuffer may grow beyond
@@ -1028,7 +1031,7 @@ impl CryptomatorFS {
             vault_stats,
             config,
             open_handle_tracker,
-            notifier: OnceLock::new(),
+            notifier: Arc::new(OnceLock::new()),
             buffer_sizes,
             sync_ops_cache: std::sync::Mutex::new(None),
             scheduler: Some(scheduler),
@@ -1054,12 +1057,28 @@ impl CryptomatorFS {
         self.ops.lock_metrics()
     }
 
-    /// Returns a reference to the OnceLock for kernel cache invalidation notifier.
+    /// Returns the cell holding the kernel cache invalidation notifier.
     ///
-    /// This is called by the backend after spawning the FUSE session to inject
-    /// the notifier for kernel cache invalidation.
-    pub fn notifier_cell(&self) -> &OnceLock<fuser::Notifier> {
-        &self.notifier
+    /// Spawning a session consumes the filesystem, so a caller that wants to
+    /// inject the notifier afterwards must clone this handle beforehand and set
+    /// it through the clone; the notifier the session hands back is the same one
+    /// this filesystem then reads.
+    pub fn notifier_cell(&self) -> Arc<OnceLock<fuser::Notifier>> {
+        Arc::clone(&self.notifier)
+    }
+
+    /// Sends a kernel notification without blocking the request being served.
+    ///
+    /// While the kernel processes a notification it may need locks that the
+    /// operation in flight is holding, so notifying from inside a request
+    /// handler stalls until that request times out. Dispatching the
+    /// notification lets the handler reply first and the kernel make progress.
+    fn notify_detached(&self, notify: impl FnOnce(&fuser::Notifier) + Send + 'static) {
+        let Some(notifier) = self.notifier.get() else {
+            return;
+        };
+        let notifier = notifier.clone();
+        self.handle.spawn_blocking(move || notify(&notifier));
     }
 
     /// Returns a scheduler stats collector for monitoring scheduler health.
@@ -3793,11 +3812,12 @@ impl Filesystem for CryptomatorFS {
 
             // Notify kernel to invalidate its dcache entry for this file
             // This forces the kernel to call lookup() again, which will return ENOENT
-            if let Some(notifier) = self.notifier.get()
-                && let Err(e) = notifier.inval_entry(fuser::INodeNo(parent), name)
-            {
-                trace!("Failed to notify kernel of deferred deletion: {}", e);
-            }
+            let entry_name = name.to_os_string();
+            self.notify_detached(move |notifier| {
+                if let Err(e) = notifier.inval_entry(fuser::INodeNo(parent), &entry_name) {
+                    trace!("Failed to notify kernel of deferred deletion: {e}");
+                }
+            });
 
             self.vault_stats.record_metadata_latency(start.elapsed());
             reply.ok();
@@ -3818,14 +3838,17 @@ impl Filesystem for CryptomatorFS {
                 self.vault_stats.record_metadata_latency(start.elapsed());
 
                 // Notify kernel of deletion (file deletion)
-                if let Some(notifier) = self.notifier.get() {
-                    // Use child_inode if available, otherwise skip notification
-                    if let Some(ino) = child_inode
-                        && let Err(e) =
-                            notifier.delete(fuser::INodeNo(parent), fuser::INodeNo(ino), name)
-                    {
-                        trace!("Failed to notify kernel of deletion (file): {}", e);
-                    }
+                if let Some(ino) = child_inode {
+                    let entry_name = name.to_os_string();
+                    self.notify_detached(move |notifier| {
+                        if let Err(e) = notifier.delete(
+                            fuser::INodeNo(parent),
+                            fuser::INodeNo(ino),
+                            &entry_name,
+                        ) {
+                            trace!("Failed to notify kernel of deletion (file): {e}");
+                        }
+                    });
                 }
 
                 reply.ok();
@@ -3845,17 +3868,17 @@ impl Filesystem for CryptomatorFS {
                         self.vault_stats.record_metadata_latency(start.elapsed());
 
                         // Notify kernel of deletion (symlink deletion)
-                        if let Some(notifier) = self.notifier.get() {
-                            // Use child_inode if available, otherwise skip notification
-                            if let Some(ino) = child_inode
-                                && let Err(e) = notifier.delete(
+                        if let Some(ino) = child_inode {
+                            let entry_name = name.to_os_string();
+                            self.notify_detached(move |notifier| {
+                                if let Err(e) = notifier.delete(
                                     fuser::INodeNo(parent),
                                     fuser::INodeNo(ino),
-                                    name,
-                                )
-                            {
-                                trace!("Failed to notify kernel of deletion (symlink): {}", e);
-                            }
+                                    &entry_name,
+                                ) {
+                                    trace!("Failed to notify kernel of deletion (symlink): {e}");
+                                }
+                            });
                         }
 
                         reply.ok();
@@ -4048,12 +4071,17 @@ impl Filesystem for CryptomatorFS {
 
                 // Notify kernel of deletion to evict from dcache
                 // This prevents kernel from caching stale inode numbers across iterations
-                if let Some(notifier) = self.notifier.get()
-                    && let Some(ino) = child_inode
-                    && let Err(e) =
-                        notifier.delete(fuser::INodeNo(parent), fuser::INodeNo(ino), name)
-                {
-                    trace!("Failed to notify kernel of directory deletion: {}", e);
+                if let Some(ino) = child_inode {
+                    let entry_name = name.to_os_string();
+                    self.notify_detached(move |notifier| {
+                        if let Err(e) = notifier.delete(
+                            fuser::INodeNo(parent),
+                            fuser::INodeNo(ino),
+                            &entry_name,
+                        ) {
+                            trace!("Failed to notify kernel of directory deletion: {e}");
+                        }
+                    });
                 }
 
                 reply.ok();

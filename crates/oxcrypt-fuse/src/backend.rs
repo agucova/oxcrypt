@@ -435,8 +435,9 @@ impl MountBackend for FuseBackend {
         let stats = fs.stats();
         let lock_metrics = Arc::clone(fs.lock_metrics());
         let scheduler_collector = fs.scheduler_stats_collector();
-        // Get pointer to notifier cell that we can use after fs is moved
-        let notifier_cell_ptr: *const std::sync::OnceLock<fuser::Notifier> = fs.notifier_cell();
+        // Share the notifier cell so it stays reachable once `fs` has been moved
+        // into the session below.
+        let notifier_cell = fs.notifier_cell();
 
         // Configure mount options
         let mut options = vec![
@@ -461,11 +462,8 @@ impl MountBackend for FuseBackend {
         let session = self.spawn_mount_with_timeout(fs, &actual_mountpoint, &options)?;
 
         // Inject notifier for kernel cache invalidation
-        // SAFETY: The pointer is valid because CryptomatorFS is kept alive by the session,
-        // and the OnceLock is at a stable address within the struct.
         {
             let notifier = session.notifier();
-            let notifier_cell = unsafe { &*notifier_cell_ptr };
             tracing::debug!("Injecting kernel notifier for cache invalidation");
             if notifier_cell.set(notifier).is_err() {
                 tracing::warn!("Failed to set notifier - already initialized");
@@ -564,8 +562,9 @@ impl MountBackend for FuseBackend {
         let stats = fs.stats();
         let lock_metrics = Arc::clone(fs.lock_metrics());
         let scheduler_collector = fs.scheduler_stats_collector();
-        // Get pointer to notifier cell that we can use after fs is moved
-        let notifier_cell_ptr: *const std::sync::OnceLock<fuser::Notifier> = fs.notifier_cell();
+        // Share the notifier cell so it stays reachable once `fs` has been moved
+        // into the session below.
+        let notifier_cell = fs.notifier_cell();
 
         // Configure mount options
         let mut mount_options = vec![
@@ -585,11 +584,8 @@ impl MountBackend for FuseBackend {
         let session = self.spawn_mount_with_timeout(fs, &actual_mountpoint, &mount_options)?;
 
         // Inject notifier for kernel cache invalidation
-        // SAFETY: The pointer is valid because CryptomatorFS is kept alive by the session,
-        // and the OnceLock is at a stable address within the struct.
         {
             let notifier = session.notifier();
-            let notifier_cell = unsafe { &*notifier_cell_ptr };
             tracing::debug!("Injecting kernel notifier for cache invalidation");
             if notifier_cell.set(notifier).is_err() {
                 tracing::warn!("Failed to set notifier - already initialized");

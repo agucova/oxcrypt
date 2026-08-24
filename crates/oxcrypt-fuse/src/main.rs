@@ -292,6 +292,10 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
         options.push(fuser::MountOption::RW);
     }
 
+    // Share the notifier cell before the session takes ownership of the filesystem,
+    // so the notifier can be handed back once the session exists.
+    let notifier_cell = fs.notifier_cell();
+
     // Set up channel for signal handling
     let (tx, rx) = mpsc::channel::<()>();
 
@@ -311,6 +315,10 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
         error!(error = %e, "Mount failed");
         anyhow::anyhow!("Failed to mount filesystem: {e}")
     })?;
+
+    if notifier_cell.set(session.notifier()).is_err() {
+        warn!("Kernel notifier was already set; cache invalidation may be stale");
+    }
 
     info!("Filesystem mounted at {}", cli.mount.display());
 
