@@ -8,7 +8,11 @@ use std::thread;
 use std::time::Duration;
 use zip::ZipArchive;
 
-fn mount_test_vault() -> (PathBuf, impl Drop) {
+/// Mounts the shared test vault on a mount point unique to `test_name`.
+///
+/// Tests in this file run concurrently, so a shared mount point would have them
+/// mounting over one another and racing on the same directories.
+fn mount_test_vault(test_name: &str) -> (PathBuf, impl Drop) {
     use oxcrypt_fuse::FuseBackend;
     use oxcrypt_mount::MountBackend;
 
@@ -19,12 +23,12 @@ fn mount_test_vault() -> (PathBuf, impl Drop) {
         .unwrap()
         .join("test_vault");
 
-    let mount_point = PathBuf::from("/tmp/fuse_git2_test");
+    let mount_point = PathBuf::from(format!("/tmp/fuse_git2_test_{test_name}"));
     fs::create_dir_all(&mount_point).unwrap();
 
     let backend = FuseBackend::new();
     let handle = backend
-        .mount("git2_test", &vault_path, "123456789", &mount_point)
+        .mount(test_name, &vault_path, "123456789", &mount_point)
         .expect("Failed to mount");
 
     // Brief delay to let mount settle
@@ -40,7 +44,7 @@ fn test_git2_init_and_commit() {
         .with_test_writer()
         .try_init();
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("init_and_commit");
 
     // Create a test repository directory
     let repo_path = mount_point.join("test_repo");
@@ -88,6 +92,9 @@ fn test_git2_init_and_commit() {
     repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
         .expect("Failed to create commit");
 
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_dir_all(&repo_path);
+
     eprintln!("Git operations completed successfully!");
 }
 
@@ -102,7 +109,7 @@ fn test_git2_multiple_iterations() {
     for iteration in 0..3 {
         eprintln!("\n=== ITERATION {} ===", iteration);
 
-        let (mount_point, handle) = mount_test_vault();
+        let (mount_point, handle) = mount_test_vault("multiple_iterations");
 
         let repo_path = mount_point.join(format!("iter{}_repo", iteration));
         // Clean up any leftover test data from previous runs
@@ -156,6 +163,9 @@ fn test_git2_multiple_iterations() {
 
         eprintln!("Iteration {} completed successfully", iteration);
 
+        // Leave the shared vault as we found it so a rerun starts from a clean state
+        let _ = fs::remove_dir_all(&repo_path);
+
         drop(handle);
         thread::sleep(Duration::from_millis(200));
     }
@@ -170,7 +180,7 @@ fn test_ripgrep_extraction_then_git() {
 
     eprintln!("\n=== Testing ripgrep extraction + git (like the benchmark) ===");
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("ripgrep_extraction");
 
     let repo_path = mount_point.join("ripgrep_test");
     // Clean up any leftover test data from previous runs
@@ -250,6 +260,9 @@ fn test_ripgrep_extraction_then_git() {
     eprintln!("Creating commit...");
     repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
         .expect("Failed to create commit");
+
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_dir_all(&repo_path);
 
     eprintln!("Ripgrep extraction + git test PASSED!");
 }

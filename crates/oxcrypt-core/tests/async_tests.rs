@@ -40,24 +40,31 @@ async fn test_async_list_files_in_subdir() {
 
     let ops = VaultOperationsAsync::new(&vault_path, Arc::new(master_key));
 
-    // The fixture vault keeps its files inside a subdirectory, so walk into it;
+    // The fixture vault keeps its files inside subdirectories, so walk into them;
     // this exercises directory resolution and filename decryption together.
+    // Mount tests share this vault and leave directories of their own behind, so
+    // look for any populated directory rather than assuming which one comes first.
     let dirs = ops
         .list_directories(&DirId::root())
         .await
         .expect("Failed to list directories");
-    let subdir = dirs
-        .first()
-        .expect("Expected a directory in test vault root");
+    assert!(!dirs.is_empty(), "Expected a directory in test vault root");
 
-    let files = ops
-        .list_files(&subdir.directory_id)
-        .await
-        .expect("Failed to list files");
+    let mut populated = Vec::new();
+    for dir in &dirs {
+        let files = ops
+            .list_files(&dir.directory_id)
+            .await
+            .expect("Failed to list files");
+        if !files.is_empty() {
+            populated.push(dir.name.as_str());
+        }
+    }
 
     assert!(
-        !files.is_empty(),
-        "Expected files in test vault subdirectory"
+        !populated.is_empty(),
+        "Expected at least one directory with files in the test vault, found only empty ones: {:?}",
+        dirs.iter().map(|d| d.name.as_str()).collect::<Vec<_>>()
     );
 }
 
