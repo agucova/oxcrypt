@@ -126,6 +126,7 @@ impl BenchmarkRunner {
     pub fn run(&self, benchmarks: &[Box<dyn Benchmark>]) -> Result<Vec<BenchmarkResult>> {
         let mut results = Vec::new();
         let mut all_stats = Vec::new();
+        let mut skipped: Vec<(String, String)> = Vec::new();
 
         // Ensure flamegraph output directory exists
         self.ensure_flamegraph_dir()?;
@@ -237,7 +238,7 @@ impl BenchmarkRunner {
                     .to_path_buf();
 
                 // Check if benchmark has phases for fine-grained progress
-                let result = if let Some(phases) = benchmark.phases() {
+                let outcome = if let Some(phases) = benchmark.phases() {
                     // Use phase-aware progress reporter
                     let phase_reporter = PhaseProgressReporter::new(
                         benchmark.name(),
@@ -246,16 +247,16 @@ impl BenchmarkRunner {
                         self.config.color,
                     );
 
-                    let result = self.run_single_benchmark_with_phase_progress(
+                    let outcome = self.run_single_benchmark_with_phase_progress(
                         benchmark.as_ref(),
                         &mount_point_path,
                         impl_type,
                         &phase_reporter,
                         &mut mount,
-                    )?;
+                    );
 
                     phase_reporter.finish();
-                    result
+                    outcome
                 } else {
                     // Use iteration-level progress reporter for benchmarks without phases
                     let iterations = self.config.effective_iterations();
@@ -266,17 +267,42 @@ impl BenchmarkRunner {
                         self.config.color,
                     );
 
-                    let result = self.run_single_benchmark_with_progress(
+                    let outcome = self.run_single_benchmark_with_progress(
                         benchmark.as_ref(),
                         &mount_point_path,
                         impl_type,
                         &mut reporter,
                         &mut mount,
-                    )?;
+                    );
 
                     reporter.finish();
-                    result
+                    outcome
                 };
+
+                // One benchmark failing should not cost us every benchmark queued
+                // behind it: a fixture that cannot be downloaded, or a workload the
+                // backend cannot support, is recorded and the run carries on.
+                let result = match outcome {
+                    Ok(result) => result,
+                    Err(e) => {
+                        if self.should_stop() {
+                            drop(mount.take());
+                            return Err(e);
+                        }
+                        eprintln!("  Skipping {} ({e:#})", benchmark.name());
+                        tracing::warn!(
+                            benchmark = benchmark.name(),
+                            error = %e,
+                            "benchmark failed; continuing with the rest"
+                        );
+                        skipped.push((
+                            format!("{} / {}", impl_type.short_name(), benchmark.name()),
+                            format!("{e:#}"),
+                        ));
+                        continue;
+                    }
+                };
+
                 let stats = compute_stats(&result);
                 printer.print_result(&stats);
 
@@ -302,6 +328,14 @@ impl BenchmarkRunner {
 
         // Print summary comparison (only if multiple implementations)
         printer.print_summary(&all_stats);
+
+        if !skipped.is_empty() {
+            eprintln!();
+            eprintln!("{} benchmark(s) did not complete:", skipped.len());
+            for (name, reason) in &skipped {
+                eprintln!("  {name}: {reason}");
+            }
+        }
 
         Ok(results)
     }
