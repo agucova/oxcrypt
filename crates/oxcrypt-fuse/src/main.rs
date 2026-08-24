@@ -63,6 +63,14 @@ struct Cli {
     /// Overrides --local-mode setting. Default: 60s (network) or 1s (local).
     #[arg(long, value_name = "SECONDS")]
     cache_ttl: Option<u64>,
+
+    /// Seconds the kernel waits on the filesystem daemon before failing an
+    /// operation. Without it, a mount whose daemon dies blocks every access to
+    /// the mountpoint indefinitely, and `mount`, `umount` and `diskutil` hang
+    /// along with it.
+    #[cfg(target_os = "macos")]
+    #[arg(long, value_name = "SECONDS", default_value_t = 30)]
+    daemon_timeout: u64,
 }
 
 fn main() -> Result<()> {
@@ -260,12 +268,18 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
     #[cfg(not(target_os = "macos"))]
     options.push(fuser::MountOption::AutoUnmount);
 
-    // On macOS, set the volume name shown in Finder and suppress the AppleDouble
-    // sidecar files the OS would otherwise write into the encrypted vault.
+    // On macOS, set the volume name shown in Finder, suppress the AppleDouble
+    // sidecar files the OS would otherwise write into the encrypted vault, and
+    // bound how long the kernel waits on this process so that losing it leaves a
+    // mountpoint that reports errors rather than one that hangs.
     #[cfg(target_os = "macos")]
     {
         options.push(fuser::MountOption::CUSTOM(format!("volname={vault_name}")));
         options.push(fuser::MountOption::CUSTOM("noappledouble".to_string()));
+        options.push(fuser::MountOption::CUSTOM(format!(
+            "daemon_timeout={}",
+            cli.daemon_timeout
+        )));
     }
 
     if cli.read_only {
