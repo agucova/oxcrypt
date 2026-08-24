@@ -147,53 +147,61 @@ pub struct LockMetricsSnapshot {
 }
 
 impl LockMetricsSnapshot {
-    /// Calculate fast path hit rate (0.0 to 1.0)
+    /// Number of non-blocking fast path attempts (hits plus misses).
+    pub fn fast_path_attempts(&self) -> u64 {
+        self.fast_path_hits + self.fast_path_misses
+    }
+
+    /// Fraction of fast path attempts that acquired the lock (0.0 to 1.0).
     pub fn fast_path_hit_rate(&self) -> f64 {
-        let total = self.fast_path_hits + self.fast_path_misses;
-        if total == 0 {
+        let attempts = self.fast_path_attempts();
+        if attempts == 0 {
             0.0
         } else {
-            self.fast_path_hits as f64 / total as f64
+            self.fast_path_hits as f64 / attempts as f64
         }
     }
 
-    /// Calculate total lock attempts
+    /// Total lock acquisitions: fast path attempts plus blocking acquisitions.
     pub fn total_attempts(&self) -> u64 {
-        self.fast_path_hits + self.fast_path_misses + self.async_acquisitions
+        self.fast_path_attempts() + self.async_acquisitions
     }
 
     /// Print formatted metrics
     pub fn print(&self) {
         let total_attempts = self.total_attempts();
-        let hit_rate = self.fast_path_hit_rate() * 100.0;
+        let fast_path_attempts = self.fast_path_attempts();
+        let percent_of = |count: u64, total: u64| {
+            if total == 0 {
+                0.0
+            } else {
+                count as f64 / total as f64 * 100.0
+            }
+        };
 
         println!("\n{}", "=".repeat(70));
         println!("LOCK CONTENTION METRICS");
         println!("{}", "=".repeat(70));
 
-        println!("\nFast Path Performance:");
+        println!("\nFast Path Performance (non-blocking try-lock attempts):");
+        println!("  Attempts: {fast_path_attempts:>10}");
         println!(
-            "  Hits:   {:>10} ({:>5.1}% of attempts)",
+            "  Hits:     {:>10} ({:>5.1}% of fast path attempts)",
             self.fast_path_hits,
-            if total_attempts > 0 {
-                self.fast_path_hits as f64 / total_attempts as f64 * 100.0
-            } else {
-                0.0
-            }
+            percent_of(self.fast_path_hits, fast_path_attempts)
         );
         println!(
-            "  Misses: {:>10} ({:>5.1}% of attempts)",
+            "  Misses:   {:>10} ({:>5.1}% of fast path attempts)",
             self.fast_path_misses,
-            if total_attempts > 0 {
-                self.fast_path_misses as f64 / total_attempts as f64 * 100.0
-            } else {
-                0.0
-            }
+            percent_of(self.fast_path_misses, fast_path_attempts)
         );
-        println!("  Hit Rate: {hit_rate:.1}%");
 
-        println!("\nAsync Path:");
-        println!("  Acquisitions: {:>10}", self.async_acquisitions);
+        println!("\nAsync Path (blocking acquisitions):");
+        println!(
+            "  Acquisitions: {:>10} ({:>5.1}% of all acquisitions)",
+            self.async_acquisitions,
+            percent_of(self.async_acquisitions, total_attempts)
+        );
 
         println!("\nLock Requests:");
         println!("  Directory: {:>10}", self.directory_lock_requests);

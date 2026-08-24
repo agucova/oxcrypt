@@ -538,8 +538,105 @@ impl VaultOperationsAsync {
         &self,
         dir_id: &DirId,
     ) -> Option<tokio::sync::OwnedRwLockReadGuard<()>> {
+        self.lock_metrics.record_directory_lock();
         let lock = self.lock_manager.directory_lock(dir_id);
-        lock.try_read_owned().ok()
+        let guard = lock.try_read_owned().ok();
+        match guard {
+            Some(_) => self.lock_metrics.record_fast_path_hit(),
+            None => self.lock_metrics.record_fast_path_miss(),
+        }
+        guard
+    }
+
+    // ========================================================================
+    // Instrumented Lock Acquisition
+    //
+    // Every blocking lock acquisition goes through these helpers so that
+    // `lock_metrics()` reflects the real lock traffic of a mounted vault.
+    // ========================================================================
+
+    /// Acquire an owned directory read lock, recording the acquisition.
+    async fn lock_directory_read(&self, dir_id: &DirId) -> tokio::sync::OwnedRwLockReadGuard<()> {
+        self.lock_metrics.record_directory_lock();
+        self.lock_metrics.record_async_acquisition();
+        self.lock_manager.directory_read(dir_id).await
+    }
+
+    /// Acquire an owned directory write lock, recording the acquisition.
+    async fn lock_directory_write(&self, dir_id: &DirId) -> tokio::sync::OwnedRwLockWriteGuard<()> {
+        self.lock_metrics.record_directory_lock();
+        self.lock_metrics.record_async_acquisition();
+        self.lock_manager.directory_write(dir_id).await
+    }
+
+    /// Acquire an owned file read lock, recording the acquisition.
+    async fn lock_file_read(
+        &self,
+        dir_id: &DirId,
+        filename: &str,
+    ) -> tokio::sync::OwnedRwLockReadGuard<()> {
+        self.lock_metrics.record_file_lock();
+        self.lock_metrics.record_async_acquisition();
+        self.lock_manager.file_read(dir_id, filename).await
+    }
+
+    /// Acquire an owned file write lock, recording the acquisition.
+    async fn lock_file_write(
+        &self,
+        dir_id: &DirId,
+        filename: &str,
+    ) -> tokio::sync::OwnedRwLockWriteGuard<()> {
+        self.lock_metrics.record_file_lock();
+        self.lock_metrics.record_async_acquisition();
+        self.lock_manager.file_write(dir_id, filename).await
+    }
+
+    /// Acquire write locks on several directories in deadlock-free order,
+    /// recording one acquisition per distinct directory.
+    async fn lock_directories_write_ordered(
+        &self,
+        dir_ids: &[&DirId],
+    ) -> Vec<(DirId, tokio::sync::OwnedRwLockWriteGuard<()>)> {
+        let guards = self
+            .lock_manager
+            .lock_directories_write_ordered(dir_ids)
+            .await;
+        for _ in &guards {
+            self.lock_metrics.record_directory_lock();
+            self.lock_metrics.record_async_acquisition();
+        }
+        guards
+    }
+
+    /// Acquire write locks on several files in deadlock-free order,
+    /// recording one acquisition per distinct file.
+    async fn lock_files_write_ordered(
+        &self,
+        dir_id: &DirId,
+        filenames: &[&str],
+    ) -> Vec<(String, tokio::sync::OwnedRwLockWriteGuard<()>)> {
+        let guards = self
+            .lock_manager
+            .lock_files_write_ordered(dir_id, filenames)
+            .await;
+        for _ in &guards {
+            self.lock_metrics.record_file_lock();
+            self.lock_metrics.record_async_acquisition();
+        }
+        guards
+    }
+
+    /// Run a CPU-bound closure on the blocking pool, recording its duration.
+    async fn spawn_blocking_measured<F, R>(&self, f: F) -> Result<R, tokio::task::JoinError>
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        let start = std::time::Instant::now();
+        let result = tokio::task::spawn_blocking(f).await;
+        let elapsed = u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        self.lock_metrics.record_blocking_task(elapsed);
+        result
     }
 
     // ========================================================================
@@ -779,7 +876,7 @@ impl VaultOperationsAsync {
         }
 
         // Fall back to async path
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Using async path for list_files");
         self.list_files_unlocked(directory_id).await
     }
@@ -858,7 +955,7 @@ impl VaultOperationsAsync {
         let dir_id_str = directory_id.as_str().to_string();
         let master_key = Arc::clone(&self.master_key);
 
-        let decrypted_regular = tokio::task::spawn_blocking(move || {
+        let decrypted_regular = self.spawn_blocking_measured(move || {
             regular_files
                 .into_iter()
                 .filter_map(|(path, encrypted_name, size)| {
@@ -929,7 +1026,7 @@ impl VaultOperationsAsync {
         }
 
         // Fall back to async path
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Using async path for list_directories");
         self.list_directories_unlocked(directory_id).await
     }
@@ -1002,7 +1099,7 @@ impl VaultOperationsAsync {
         let parent_dir_id = directory_id.clone();
         let master_key = Arc::clone(&self.master_key);
 
-        let decrypted_regular = tokio::task::spawn_blocking(move || {
+        let decrypted_regular = self.spawn_blocking_measured(move || {
             regular_dirs
                 .into_iter()
                 .filter_map(|(path, encrypted_name, dir_id_content)| {
@@ -1077,7 +1174,7 @@ impl VaultOperationsAsync {
         }
 
         // Fall back to async path
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Using async path for find_file");
         self.find_file_unlocked(directory_id, filename).await
     }
@@ -1160,7 +1257,7 @@ impl VaultOperationsAsync {
         }
 
         // Fall back to async path
-        let _guard = self.lock_manager.directory_read(parent_directory_id).await;
+        let _guard = self.lock_directory_read(parent_directory_id).await;
         trace!("Using async path for find_directory");
         self.find_directory_unlocked(parent_directory_id, dir_name)
             .await
@@ -1240,7 +1337,7 @@ impl VaultOperationsAsync {
         }
 
         // Fall back to async path
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Using async path for find_symlink");
         self.find_symlink_unlocked(directory_id, symlink_name).await
     }
@@ -1310,7 +1407,7 @@ impl VaultOperationsAsync {
         &self,
         directory_id: &DirId,
     ) -> Result<(Vec<VaultFileInfo>, Vec<VaultDirectoryInfo>), VaultOperationError> {
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Acquired directory read lock for list_entries");
 
         let files = self.list_files_unlocked(directory_id).await?;
@@ -1352,7 +1449,7 @@ impl VaultOperationsAsync {
         ),
         VaultOperationError,
     > {
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Acquired directory read lock for list_all");
 
         // Run all three listings concurrently - they're all read-only directory scans
@@ -1399,8 +1496,8 @@ impl VaultOperationsAsync {
     ) -> Result<DecryptedFile, VaultOperationError> {
         // Acquire locks in consistent order: directory first, then file
         // This prevents deadlocks with write operations that use the same order
-        let _dir_guard = self.lock_manager.directory_read(directory_id).await;
-        let _file_guard = self.lock_manager.file_read(directory_id, filename).await;
+        let _dir_guard = self.lock_directory_read(directory_id).await;
+        let _file_guard = self.lock_file_read(directory_id, filename).await;
         trace!("Acquired directory and file read locks for read_file");
 
         // Use optimized lookup instead of listing all files
@@ -1476,8 +1573,8 @@ impl VaultOperationsAsync {
 
         // Acquire locks in consistent order: directory first, then file
         // These locks will be transferred to the reader to hold for its lifetime
-        let dir_guard = self.lock_manager.directory_read(directory_id).await;
-        let file_guard = self.lock_manager.file_read(directory_id, filename).await;
+        let dir_guard = self.lock_directory_read(directory_id).await;
+        let file_guard = self.lock_file_read(directory_id, filename).await;
         trace!("Acquired directory and file read locks for open_file");
 
         // Use optimized lookup instead of listing all files
@@ -1560,8 +1657,8 @@ impl VaultOperationsAsync {
 
         // Acquire locks ONLY for the duration of file lookup
         // These will be dropped when this function returns
-        let _dir_guard = self.lock_manager.directory_read(directory_id).await;
-        let _file_guard = self.lock_manager.file_read(directory_id, filename).await;
+        let _dir_guard = self.lock_directory_read(directory_id).await;
+        let _file_guard = self.lock_file_read(directory_id, filename).await;
         trace!("Acquired temporary locks for file lookup");
 
         // Find the encrypted file path
@@ -1669,8 +1766,8 @@ impl VaultOperationsAsync {
 
         // Acquire locks in consistent order: directory first, then file
         // These locks will be transferred to the writer to hold for its lifetime
-        let dir_guard = self.lock_manager.directory_write(directory_id).await;
-        let file_guard = self.lock_manager.file_write(directory_id, filename).await;
+        let dir_guard = self.lock_directory_write(directory_id).await;
+        let file_guard = self.lock_file_write(directory_id, filename).await;
         trace!("Acquired directory and file write locks for create_file");
 
         // Calculate storage path for this directory
@@ -1788,8 +1885,8 @@ impl VaultOperationsAsync {
         // The current simple approach is correct and the write lock is held briefly (only during
         // the filesystem write, not during encryption). The slight contention overhead is worth
         // the simplicity and correctness guarantee.
-        let _dir_guard = self.lock_manager.directory_write(dir_id).await;
-        let _file_guard = self.lock_manager.file_write(dir_id, filename).await;
+        let _dir_guard = self.lock_directory_write(dir_id).await;
+        let _file_guard = self.lock_file_write(dir_id, filename).await;
         trace!("Acquired directory and file write locks for write_file");
 
         // 1. Calculate storage path for this directory
@@ -2180,7 +2277,7 @@ impl VaultOperationsAsync {
         info!("Creating new directory in vault");
 
         // Acquire parent directory write lock
-        let _parent_guard = self.lock_manager.directory_write(parent_dir_id).await;
+        let _parent_guard = self.lock_directory_write(parent_dir_id).await;
         trace!("Acquired parent directory write lock for create_directory");
 
         // Calculate storage path for parent directory
@@ -2276,8 +2373,8 @@ impl VaultOperationsAsync {
 
         // Acquire directory write lock (for listing consistency) and file write lock
         // Order: directory first, then file
-        let _dir_guard = self.lock_manager.directory_write(dir_id).await;
-        let _file_guard = self.lock_manager.file_write(dir_id, filename).await;
+        let _dir_guard = self.lock_directory_write(dir_id).await;
+        let _file_guard = self.lock_file_write(dir_id, filename).await;
         trace!("Acquired directory and file write locks for delete_file");
 
         let ctx = VaultOpContext::new()
@@ -2344,7 +2441,7 @@ impl VaultOperationsAsync {
         info!("Deleting directory from vault");
 
         // Acquire parent directory write lock first
-        let _parent_guard = self.lock_manager.directory_write(parent_dir_id).await;
+        let _parent_guard = self.lock_directory_write(parent_dir_id).await;
         trace!("Acquired parent directory write lock for delete_directory");
 
         let ctx = VaultOpContext::new()
@@ -2373,10 +2470,7 @@ impl VaultOperationsAsync {
         trace!(target_dir_id = %dir_info.directory_id.as_str(), "Found directory to delete");
 
         // Acquire target directory write lock (in addition to parent lock)
-        let _target_guard = self
-            .lock_manager
-            .directory_write(&dir_info.directory_id)
-            .await;
+        let _target_guard = self.lock_directory_write(&dir_info.directory_id).await;
         trace!("Acquired target directory write lock for delete_directory");
 
         // Check directory is empty (use unlocked versions since we hold both locks)
@@ -2472,10 +2566,9 @@ impl VaultOperationsAsync {
         }
 
         // Acquire directory write lock and file write locks in order
-        let _dir_guard = self.lock_manager.directory_write(dir_id).await;
+        let _dir_guard = self.lock_directory_write(dir_id).await;
         // Lock both files in alphabetical order to prevent deadlocks
         let _file_guards = self
-            .lock_manager
             .lock_files_write_ordered(dir_id, &[old_name, new_name])
             .await;
         trace!("Acquired directory and file write locks for rename_file");
@@ -2594,7 +2687,7 @@ impl VaultOperationsAsync {
         }
 
         // Acquire parent directory write lock
-        let _parent_guard = self.lock_manager.directory_write(parent_dir_id).await;
+        let _parent_guard = self.lock_directory_write(parent_dir_id).await;
         trace!("Acquired parent directory write lock for rename_directory");
 
         // Find the source directory using optimized lookup
@@ -2715,7 +2808,6 @@ impl VaultOperationsAsync {
 
         // Acquire parent directory write locks in consistent order to prevent deadlocks
         let _dir_guards = self
-            .lock_manager
             .lock_directories_write_ordered(&[src_parent_dir_id, dest_parent_dir_id])
             .await;
         trace!("Acquired parent directory write locks for move_and_rename_directory");
@@ -2820,12 +2912,11 @@ impl VaultOperationsAsync {
 
         // Acquire directory write locks in consistent order to prevent deadlocks
         let _dir_guards = self
-            .lock_manager
             .lock_directories_write_ordered(&[src_dir_id, dest_dir_id])
             .await;
         // Also lock the file in both directories
-        let _src_file_guard = self.lock_manager.file_write(src_dir_id, filename).await;
-        let _dest_file_guard = self.lock_manager.file_write(dest_dir_id, filename).await;
+        let _src_file_guard = self.lock_file_write(src_dir_id, filename).await;
+        let _dest_file_guard = self.lock_file_write(dest_dir_id, filename).await;
         trace!("Acquired all locks for move_file");
 
         // Use optimized lookup for source file
@@ -2964,13 +3055,12 @@ impl VaultOperationsAsync {
 
         // Acquire directory write locks in consistent order to prevent deadlocks
         let _dir_guards = self
-            .lock_manager
             .lock_directories_write_ordered(&[src_dir_id, dest_dir_id])
             .await;
 
         // Lock files in both directories (need all four combinations for safety)
-        let _src_file_guard = self.lock_manager.file_write(src_dir_id, src_name).await;
-        let _dest_file_guard = self.lock_manager.file_write(dest_dir_id, dest_name).await;
+        let _src_file_guard = self.lock_file_write(src_dir_id, src_name).await;
+        let _dest_file_guard = self.lock_file_write(dest_dir_id, dest_name).await;
         trace!("Acquired all locks for move_and_rename_file");
 
         // Find source file
@@ -3125,13 +3215,12 @@ impl VaultOperationsAsync {
 
         // Acquire directory write locks in consistent order to prevent deadlocks
         let _dir_guards = self
-            .lock_manager
             .lock_directories_write_ordered(&[dir_id_a, dir_id_b])
             .await;
 
         // Lock all files involved
-        let _file_guard_a = self.lock_manager.file_write(dir_id_a, name_a).await;
-        let _file_guard_b = self.lock_manager.file_write(dir_id_b, name_b).await;
+        let _file_guard_a = self.lock_file_write(dir_id_a, name_a).await;
+        let _file_guard_b = self.lock_file_write(dir_id_b, name_b).await;
         trace!("Acquired all locks for atomic_swap_files");
 
         // Verify both files exist
@@ -3381,7 +3470,7 @@ impl VaultOperationsAsync {
         }
 
         // Acquire parent directory write lock
-        let _parent_guard = self.lock_manager.directory_write(parent_dir_id).await;
+        let _parent_guard = self.lock_directory_write(parent_dir_id).await;
         trace!("Acquired parent directory write lock for atomic_swap_directories");
 
         // Find both directories
@@ -3584,7 +3673,7 @@ impl VaultOperationsAsync {
         }
 
         // Fall back to async path
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         trace!("Using async path for list_symlinks");
         self.list_symlinks_unlocked(directory_id).await
     }
@@ -3783,7 +3872,7 @@ impl VaultOperationsAsync {
         name: &str,
     ) -> Result<String, VaultOperationError> {
         // Acquire directory read lock
-        let _guard = self.lock_manager.directory_read(directory_id).await;
+        let _guard = self.lock_directory_read(directory_id).await;
         debug!("Looking up symlink in directory");
 
         // Calculate the directory storage path
@@ -3860,7 +3949,7 @@ impl VaultOperationsAsync {
         target: &str,
     ) -> Result<(), VaultWriteError> {
         // Acquire directory write lock
-        let _guard = self.lock_manager.directory_write(directory_id).await;
+        let _guard = self.lock_directory_write(directory_id).await;
         debug!(target = %target, "Creating symlink");
 
         // Calculate the directory storage path
@@ -3946,7 +4035,7 @@ impl VaultOperationsAsync {
         name: &str,
     ) -> Result<(), VaultWriteError> {
         // Acquire directory write lock
-        let _guard = self.lock_manager.directory_write(directory_id).await;
+        let _guard = self.lock_directory_write(directory_id).await;
         debug!("Deleting symlink");
 
         let dir_path = self
@@ -4036,7 +4125,7 @@ impl VaultOperationsAsync {
         }
 
         // Acquire directory write lock
-        let _guard = self.lock_manager.directory_write(directory_id).await;
+        let _guard = self.lock_directory_write(directory_id).await;
         trace!("Acquired directory write lock for rename_symlink");
 
         // Find source symlink
@@ -4162,7 +4251,6 @@ impl VaultOperationsAsync {
 
         // Acquire directory write locks in consistent order to prevent deadlocks
         let _dir_guards = self
-            .lock_manager
             .lock_directories_write_ordered(&[src_dir_id, dest_dir_id])
             .await;
         trace!("Acquired directory write locks for move_and_rename_symlink");

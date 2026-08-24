@@ -972,8 +972,10 @@ impl CryptomatorFS {
             "CryptomatorFS initialized"
         );
 
-        // Create handle table (shared with scheduler for reader restoration)
-        let handle_table = Arc::new(FuseHandleTable::new_auto_id());
+        // Create handle table (shared with scheduler for reader restoration).
+        // It carries the vault's lock metrics so handle traffic is profiled.
+        let handle_table =
+            Arc::new(FuseHandleTable::new_auto_id().with_metrics(Arc::clone(ops.lock_metrics())));
 
         // Create scheduler (but don't start yet - started in init())
         let buffer_sizes = Arc::new(DashMap::new());

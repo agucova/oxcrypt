@@ -13,7 +13,9 @@
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use dashmap::mapref::one::{Ref, RefMut};
+use oxcrypt_core::vault::lock_metrics::LockMetrics;
 use std::hash::Hash;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Thread-safe handle table with optional auto-ID generation.
@@ -61,6 +63,8 @@ where
     /// For auto-incrementing u64 keys (starts at 1, 0 reserved for invalid).
     /// Only used when K = u64.
     next_id: Option<AtomicU64>,
+    /// Counters recording handle lifecycle events, when profiling is enabled.
+    metrics: Option<Arc<LockMetrics>>,
 }
 
 impl<V> HandleTable<u64, V> {
@@ -71,6 +75,7 @@ impl<V> HandleTable<u64, V> {
         Self {
             handles: DashMap::new(),
             next_id: Some(AtomicU64::new(1)),
+            metrics: None,
         }
     }
 
@@ -97,6 +102,7 @@ impl<V> HandleTable<u64, V> {
             }
             if let Entry::Vacant(entry) = self.handles.entry(id) {
                 entry.insert(value.take().expect("value already inserted"));
+                self.record(LockMetrics::record_handle_insertion);
                 return id;
             }
         }
@@ -112,6 +118,7 @@ where
         Self {
             handles: DashMap::new(),
             next_id: None,
+            metrics: None,
         }
     }
 
@@ -120,6 +127,22 @@ where
         Self {
             handles: DashMap::with_capacity(capacity),
             next_id: None,
+            metrics: None,
+        }
+    }
+
+    /// Attach lock metrics so handle insertions, retrievals, and removals are counted.
+    #[must_use]
+    pub fn with_metrics(mut self, metrics: Arc<LockMetrics>) -> Self {
+        self.metrics = Some(metrics);
+        self
+    }
+
+    /// Apply a recorder to the attached metrics, if any.
+    #[inline]
+    fn record(&self, recorder: fn(&LockMetrics)) {
+        if let Some(metrics) = &self.metrics {
+            recorder(metrics);
         }
     }
 
@@ -128,21 +151,34 @@ where
     /// If the key already exists, the old value is replaced.
     pub fn insert(&self, key: K, value: V) {
         self.handles.insert(key, value);
+        self.record(LockMetrics::record_handle_insertion);
     }
 
     /// Get a reference to a handle by key.
     pub fn get(&self, key: &K) -> Option<Ref<'_, K, V>> {
-        self.handles.get(key)
+        let handle = self.handles.get(key);
+        if handle.is_some() {
+            self.record(LockMetrics::record_handle_retrieval);
+        }
+        handle
     }
 
     /// Get a mutable reference to a handle by key.
     pub fn get_mut(&self, key: &K) -> Option<RefMut<'_, K, V>> {
-        self.handles.get_mut(key)
+        let handle = self.handles.get_mut(key);
+        if handle.is_some() {
+            self.record(LockMetrics::record_handle_retrieval);
+        }
+        handle
     }
 
     /// Remove a handle by key and return it.
     pub fn remove(&self, key: &K) -> Option<V> {
-        self.handles.remove(key).map(|(_, v)| v)
+        let handle = self.handles.remove(key).map(|(_, v)| v);
+        if handle.is_some() {
+            self.record(LockMetrics::record_handle_removal);
+        }
+        handle
     }
 
     /// Check if a handle exists.
@@ -355,6 +391,25 @@ mod tests {
     fn test_with_capacity() {
         let table: HandleTable<u64, String> = HandleTable::with_capacity(100);
         assert!(table.is_empty());
+    }
+
+    #[test]
+    fn test_metrics_record_handle_lifecycle() {
+        let metrics = Arc::new(LockMetrics::new());
+        let table: HandleTable<u64, &str> =
+            HandleTable::new_auto_id().with_metrics(Arc::clone(&metrics));
+
+        let id = table.insert_auto("handle");
+        assert!(table.get(&id).is_some());
+        assert!(table.get_mut(&id).is_some());
+        assert!(table.get(&999).is_none());
+        assert!(table.remove(&id).is_some());
+        assert!(table.remove(&id).is_none());
+
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.handle_insertions, 1);
+        assert_eq!(snapshot.handle_retrievals, 2);
+        assert_eq!(snapshot.handle_removals, 1);
     }
 
     #[test]
