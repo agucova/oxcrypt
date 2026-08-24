@@ -10,7 +10,11 @@ use std::thread;
 use std::time::Duration;
 
 /// Helper to mount vault and return mount point
-fn mount_test_vault() -> (PathBuf, impl Drop) {
+/// Mounts the shared test vault on a mount point unique to `test_name`.
+///
+/// Tests in this file run concurrently, so a shared mount point would have them
+/// mounting over one another and racing on the same directories.
+fn mount_test_vault(test_name: &str) -> (PathBuf, impl Drop) {
     use oxcrypt_fuse::FuseBackend;
     use oxcrypt_mount::MountBackend;
 
@@ -21,12 +25,12 @@ fn mount_test_vault() -> (PathBuf, impl Drop) {
         .unwrap()
         .join("test_vault");
 
-    let mount_point = PathBuf::from("/tmp/fuse_consistency_test");
+    let mount_point = PathBuf::from(format!("/tmp/fuse_consistency_test_{test_name}"));
     fs::create_dir_all(&mount_point).unwrap();
 
     let backend = FuseBackend::new();
     let handle = backend
-        .mount("consistency_test", &vault_path, "123456789", &mount_point)
+        .mount(test_name, &vault_path, "123456789", &mount_point)
         .expect("Failed to mount");
 
     // Brief delay to let mount settle
@@ -39,7 +43,7 @@ fn mount_test_vault() -> (PathBuf, impl Drop) {
 fn test_immediate_write_read() {
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("immediate_write_read");
 
     // Create a test file
     let test_file = mount_point.join("immediate_test.txt");
@@ -62,16 +66,20 @@ fn test_immediate_write_read() {
     }
 
     assert_eq!(read_data, test_data, "Read data doesn't match written data");
+
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_file(&test_file);
 }
 
 #[test]
 fn test_git_like_object_creation() {
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    let (mount_point, _handle) = mount_test_vault();
+    let (mount_point, _handle) = mount_test_vault("git_like_objects");
 
     // Simulate git object database structure
-    let objects_dir = mount_point.join(".git").join("objects").join("ab");
+    let git_dir = mount_point.join(".git");
+    let objects_dir = git_dir.join("objects").join("ab");
     fs::create_dir_all(&objects_dir).expect("Failed to create objects directory");
 
     // Create multiple object files (like git does)
@@ -119,6 +127,9 @@ fn test_git_like_object_creation() {
             object_id
         );
     }
+
+    // Leave the shared vault as we found it so a rerun starts from a clean state
+    let _ = fs::remove_dir_all(&git_dir);
 }
 
 #[test]
@@ -129,7 +140,7 @@ fn test_multiple_mounts_iterations() {
     for iteration in 0..3 {
         eprintln!("\n=== ITERATION {} ===", iteration);
 
-        let (mount_point, handle) = mount_test_vault();
+        let (mount_point, handle) = mount_test_vault("multiple_mounts");
 
         let test_file = mount_point.join(format!("iter{}_test.txt", iteration));
         let test_data = format!("Iteration {}", iteration);
@@ -156,6 +167,9 @@ fn test_multiple_mounts_iterations() {
             "Iteration {}: Data mismatch",
             iteration
         );
+
+        // Leave the shared vault as we found it so a rerun starts from a clean state
+        let _ = fs::remove_file(&test_file);
 
         // Unmount
         drop(handle);
