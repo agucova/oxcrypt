@@ -251,18 +251,21 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
     let mut options = vec![
         fuser::MountOption::FSName(format!("cryptomator:{vault_name}")),
         fuser::MountOption::Subtype("oxcrypt".to_string()),
-        fuser::MountOption::AutoUnmount,
         // Let kernel handle permission checks - avoids access() calls for every operation
         fuser::MountOption::DefaultPermissions,
     ];
 
+    // macFUSE's libfuse3 does not implement auto_unmount, and rejects the mount
+    // outright when it is passed. The session is unmounted explicitly on shutdown.
+    #[cfg(not(target_os = "macos"))]
+    options.push(fuser::MountOption::AutoUnmount);
+
+    // On macOS, set the volume name shown in Finder and suppress the AppleDouble
+    // sidecar files the OS would otherwise write into the encrypted vault.
     #[cfg(target_os = "macos")]
     {
         options.push(fuser::MountOption::CUSTOM(format!("volname={vault_name}")));
-        // Enable auto_cache to automatically invalidate cached data when files change.
-        // This helps prevent SIGBUS crashes with mmap by keeping the buffer cache
-        // consistent with actual file contents (e.g., SQLite WAL shared memory files).
-        options.push(fuser::MountOption::CUSTOM("auto_cache".to_string()));
+        options.push(fuser::MountOption::CUSTOM("noappledouble".to_string()));
     }
 
     if cli.read_only {
@@ -281,7 +284,10 @@ fn mount_and_wait(cli: &Cli, fs: CryptomatorFS) -> Result<()> {
 
     info!("Mounting filesystem (press Ctrl+C to unmount)");
 
-    let session = fuser::spawn_mount2(fs, &cli.mount, &options).map_err(|e| {
+    let mut config = fuser::Config::default();
+    config.mount_options = options;
+
+    let session = fuser::spawn_mount(fs, &cli.mount, &config).map_err(|e| {
         error!(error = %e, "Mount failed");
         anyhow::anyhow!("Failed to mount filesystem: {e}")
     })?;

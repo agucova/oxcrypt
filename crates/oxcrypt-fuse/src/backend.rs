@@ -112,9 +112,11 @@ impl MountHandle for FuseMountHandle {
     fn unmount(mut self: Box<Self>) -> Result<(), MountError> {
         tracing::info!(mountpoint = %self.mountpoint.display(), "Unmounting FUSE filesystem");
         if let Some(session) = self.session.take() {
-            // Join the session for clean unmount
+            // Unmount and join the session for clean shutdown
             // This may block if files are open
-            session.join();
+            session
+                .umount_and_join()
+                .map_err(|e| MountError::UnmountFailed(e.to_string()))?;
         }
         tracing::info!(mountpoint = %self.mountpoint.display(), "FUSE unmount successful");
         Ok(())
@@ -129,8 +131,11 @@ impl MountHandle for FuseMountHandle {
             // Brief pause to let the force unmount take effect
             std::thread::sleep(Duration::from_millis(100));
 
-            // Now join the session (should complete quickly after force unmount)
-            session.join();
+            // Now join the session (should complete quickly after force unmount).
+            // The volume is already gone, so a failure here is expected and not fatal.
+            if let Err(e) = session.umount_and_join() {
+                tracing::debug!(error = %e, "Session join after force unmount reported an error");
+            }
         }
         tracing::info!(mountpoint = %self.mountpoint.display(), "FUSE force unmount successful");
         Ok(())
@@ -154,7 +159,9 @@ impl Drop for FuseMountHandle {
             let (tx, rx) = mpsc::channel();
             let mountpoint_for_log = self.mountpoint.clone();
             std::thread::spawn(move || {
-                session.join();
+                if let Err(e) = session.umount_and_join() {
+                    tracing::debug!(error = %e, "Background unmount reported an error");
+                }
                 let _ = tx.send(());
             });
 
@@ -169,7 +176,7 @@ impl Drop for FuseMountHandle {
                 Err(_) => {
                     // Timeout - force unmount to unblock the join thread
                     tracing::warn!(
-                        "session.join() timed out after {:?} for {}, forcing unmount",
+                        "session unmount timed out after {:?} for {}, forcing unmount",
                         JOIN_TIMEOUT,
                         mountpoint_for_log.display()
                     );
@@ -265,8 +272,8 @@ impl FuseBackend {
         )))
     }
 
-    /// Try to mount with spawn_mount2, with a timeout to handle cases where
-    /// the mount syscall itself blocks (e.g., stale mount at mountpoint).
+    /// Try to mount with a timeout to handle cases where the mount syscall
+    /// itself blocks (e.g., stale mount at mountpoint).
     fn spawn_mount_with_timeout(
         &self,
         fs: CryptomatorFS,
@@ -274,12 +281,13 @@ impl FuseBackend {
         options: &[MountOption],
     ) -> Result<BackgroundSession, MountError> {
         let mountpoint = mountpoint.to_path_buf();
-        let options: Vec<MountOption> = options.to_vec();
+        let mut config = fuser::Config::default();
+        config.mount_options = options.to_vec();
         let (tx, rx) = mpsc::channel();
 
         // Spawn the mount in a separate thread so we can timeout
         std::thread::spawn(move || {
-            let result = fuser::spawn_mount2(fs, &mountpoint, &options);
+            let result = fuser::spawn_mount(fs, &mountpoint, &config);
             let _ = tx.send(result);
         });
 
@@ -403,20 +411,26 @@ impl MountBackend for FuseBackend {
         // Get pointer to notifier cell that we can use after fs is moved
         let notifier_cell_ptr: *const std::sync::OnceLock<fuser::Notifier> = fs.notifier_cell();
 
-        // Configure mount options (mutated only in the macOS-specific block below)
-        #[allow(unused_mut)]
+        // Configure mount options
         let mut options = vec![
             MountOption::FSName(format!("cryptomator:{vault_id}")),
             MountOption::Subtype("oxcrypt".to_string()),
-            MountOption::AutoUnmount,
             // Let kernel handle permission checks - avoids access() calls for every operation
             MountOption::DefaultPermissions,
         ];
+
+        // macFUSE's libfuse3 does not implement auto_unmount, and rejects the mount
+        // outright when it is passed. Unmounting is handled explicitly instead.
+        #[cfg(not(target_os = "macos"))]
+        options.push(MountOption::AutoUnmount);
 
         // On macOS, set the volume name shown in Finder
         #[cfg(target_os = "macos")]
         {
             options.push(MountOption::CUSTOM(format!("volname={vault_id}")));
+            // Suppress the AppleDouble sidecar files macOS writes for extended
+            // attributes, which would otherwise land inside the encrypted vault.
+            options.push(MountOption::CUSTOM("noappledouble".to_string()));
             // Auto-eject after 30s if daemon stops responding (prevents ghost mounts)
             options.push(MountOption::CUSTOM("daemon_timeout=30".to_string()));
             options.extend(macfuse_backend_option());
@@ -532,18 +546,24 @@ impl MountBackend for FuseBackend {
         // Get pointer to notifier cell that we can use after fs is moved
         let notifier_cell_ptr: *const std::sync::OnceLock<fuser::Notifier> = fs.notifier_cell();
 
-        // Configure mount options (mutated only in the macOS-specific block below)
-        #[allow(unused_mut)]
+        // Configure mount options
         let mut mount_options = vec![
             MountOption::FSName(format!("cryptomator:{vault_id}")),
             MountOption::Subtype("oxcrypt".to_string()),
-            MountOption::AutoUnmount,
         ];
+
+        // macFUSE's libfuse3 does not implement auto_unmount, and rejects the mount
+        // outright when it is passed. Unmounting is handled explicitly instead.
+        #[cfg(not(target_os = "macos"))]
+        mount_options.push(MountOption::AutoUnmount);
 
         // On macOS, set the volume name shown in Finder
         #[cfg(target_os = "macos")]
         {
             mount_options.push(MountOption::CUSTOM(format!("volname={vault_id}")));
+            // Suppress the AppleDouble sidecar files macOS writes for extended
+            // attributes, which would otherwise land inside the encrypted vault.
+            mount_options.push(MountOption::CUSTOM("noappledouble".to_string()));
             // Auto-eject after 30s if daemon stops responding (prevents ghost mounts)
             mount_options.push(MountOption::CUSTOM("daemon_timeout=30".to_string()));
             mount_options.extend(macfuse_backend_option());

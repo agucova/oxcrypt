@@ -202,7 +202,7 @@ mod tests {
 
     fn make_test_attr(inode: u64) -> FileAttr {
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size: 0,
             blocks: 0,
             atime: UNIX_EPOCH,
@@ -228,7 +228,7 @@ mod tests {
         cache.insert(42, attr);
 
         let cached = cache.get(42).unwrap();
-        assert_eq!(cached.value.ino, 42);
+        assert_eq!(cached.value.ino, fuser::INodeNo(42));
     }
 
     #[test]

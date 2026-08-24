@@ -92,3 +92,9 @@ strip = "debuginfo"  # Remove debug info but keep symbols
 [profile.profiling]
 inherits = "release"
 debug = true
+
+# Vendored fuser: upstream's build.rs hardcodes libfuse2 on macOS, which macFUSE 5
+# no longer supports (fuse_mount_compat25 can't return a descriptor). The vendored
+# copy probes libfuse3 first there. Remove once fixed upstream.
+[patch.crates-io]
+fuser = { path = "vendor/fuser" }

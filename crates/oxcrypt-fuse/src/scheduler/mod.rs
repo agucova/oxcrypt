@@ -476,6 +476,9 @@ struct PendingStructural {
 /// The main scheduler for async FUSE operations.
 ///
 /// Manages request submission, result dispatching, and reply handling.
+/// Channel carrying completed executor results back to the dispatcher.
+type ResultReceiver = std::sync::mpsc::Receiver<(RequestId, oneshot::Receiver<ExecutorResult>)>;
+
 pub struct FuseScheduler {
     /// The syscall executor.
     executor: Arc<FsSyscallExecutor>,
@@ -532,7 +535,7 @@ pub struct FuseScheduler {
     /// Dispatcher thread handle.
     dispatcher_handle: Option<JoinHandle<()>>,
     /// Receiver for completed results.
-    result_rx: Option<std::sync::mpsc::Receiver<(RequestId, oneshot::Receiver<ExecutorResult>)>>,
+    result_rx: std::sync::Mutex<Option<ResultReceiver>>,
     /// Sender for result receivers (used by enqueue).
     result_tx: std::sync::mpsc::Sender<(RequestId, oneshot::Receiver<ExecutorResult>)>,
     /// Configuration.
@@ -627,7 +630,7 @@ impl FuseScheduler {
             shutdown,
             dispatcher_event,
             dispatcher_handle: None,
-            result_rx: Some(result_rx),
+            result_rx: std::sync::Mutex::new(Some(result_rx)),
             result_tx,
             config,
         }
@@ -642,7 +645,12 @@ impl FuseScheduler {
             return;
         }
 
-        let result_rx = self.result_rx.take().expect("result_rx already taken");
+        let result_rx = self
+            .result_rx
+            .lock()
+            .expect("result_rx mutex poisoned")
+            .take()
+            .expect("result_rx already taken");
         let executor = Arc::clone(&self.executor);
         let lane_queues = Arc::clone(&self.lane_queues);
         let fairness_dispatcher = Arc::clone(&self.dispatcher);
@@ -745,7 +753,7 @@ impl FuseScheduler {
         if self.shutdown.load(Ordering::Acquire) {
             // Restore reader before returning
             self.restore_reader(fh, reader);
-            reply.error(libc::ESHUTDOWN);
+            reply.error(fuser::Errno::from_i32(libc::ESHUTDOWN));
             return Err(EnqueueError::Shutdown);
         }
 
@@ -829,7 +837,7 @@ impl FuseScheduler {
                 self.in_flight.cancel(&read_key);
             }
             self.stats.record_reject(lane as usize);
-            reply.error(libc::EAGAIN);
+            reply.error(fuser::Errno::from_i32(libc::EAGAIN));
             debug!(?request_id, ?lane, "Lane queue full: {}", e);
             return Err(EnqueueError::QueueFull);
         }
@@ -984,7 +992,7 @@ impl FuseScheduler {
     ) -> Result<RequestId, EnqueueError> {
         if self.shutdown.load(Ordering::Acquire) {
             self.restore_reader(fh_in, reader);
-            reply.error(libc::ESHUTDOWN);
+            reply.error(fuser::Errno::from_i32(libc::ESHUTDOWN));
             return Err(EnqueueError::Shutdown);
         }
 
@@ -1013,7 +1021,7 @@ impl FuseScheduler {
                 self.restore_reader(fh_in, copy_job.reader);
             }
             self.stats.record_reject(lane as usize);
-            reply.error(libc::EAGAIN);
+            reply.error(fuser::Errno::from_i32(libc::EAGAIN));
             debug!(?request_id, ?lane, "Lane queue full: {}", e);
             return Err(EnqueueError::QueueFull);
         }
@@ -1521,7 +1529,7 @@ fn dispatcher_loop(
                     let reply = pending.reply.take();
                     warn!(?request_id, "Read request timed out");
                     if let Some(reply) = reply {
-                        reply.error(libc::ETIMEDOUT);
+                        reply.error(fuser::Errno::from_i32(libc::ETIMEDOUT));
                     }
                     // Decrement in-flight counter for this lane only if dispatched
                     if dispatched {
@@ -1550,7 +1558,7 @@ fn dispatcher_loop(
                         ino, offset, size, "Single-flight waiter timed out"
                     );
                     if let Some(reply) = reply {
-                        reply.error(libc::ETIMEDOUT);
+                        reply.error(fuser::Errno::from_i32(libc::ETIMEDOUT));
                     }
                     drop(pending);
                     pending_read_waiters.remove(&request_id);
@@ -1591,7 +1599,7 @@ fn dispatcher_loop(
                     let reply = pending.reply.take();
                     warn!(?request_id, "copy_file_range request timed out");
                     if let Some(reply) = reply {
-                        reply.error(libc::ETIMEDOUT);
+                        reply.error(fuser::Errno::from_i32(libc::ETIMEDOUT));
                     }
                     // Decrement in-flight counter for this lane only if dispatched
                     if dispatched {
@@ -1988,7 +1996,7 @@ fn dispatcher_loop(
                                         vault_stats.finish_read();
                                     }
                                     Err(errno) => {
-                                        reply.error(errno);
+                                        reply.error(fuser::Errno::from_i32(errno));
                                         stats.record_accept();
                                         vault_stats.finish_read();
                                         vault_stats.record_error();
@@ -2013,7 +2021,7 @@ fn dispatcher_loop(
 
                         if let Some(reply) = reply {
                             if state.claim_reply() {
-                                reply.error(libc::EIO);
+                                reply.error(fuser::Errno::from_i32(libc::EIO));
                                 stats.record_accept();
                                 vault_stats.finish_read();
                                 vault_stats.record_error();
@@ -2132,7 +2140,7 @@ fn dispatcher_loop(
         {
             warn!(?request_id, "Replying ESHUTDOWN to pending read");
             if let Some(reply) = pending.reply.take() {
-                reply.error(libc::ESHUTDOWN);
+                reply.error(fuser::Errno::from_i32(libc::ESHUTDOWN));
             }
         }
     }
@@ -2144,7 +2152,7 @@ fn dispatcher_loop(
         {
             warn!(?request_id, "Replying ESHUTDOWN to pending read waiter");
             if let Some(reply) = pending.reply.take() {
-                reply.error(libc::ESHUTDOWN);
+                reply.error(fuser::Errno::from_i32(libc::ESHUTDOWN));
             }
         }
     }
@@ -2156,7 +2164,7 @@ fn dispatcher_loop(
         {
             warn!(?request_id, "Replying ESHUTDOWN to pending copy_file_range");
             if let Some(reply) = pending.reply.take() {
-                reply.error(libc::ESHUTDOWN);
+                reply.error(fuser::Errno::from_i32(libc::ESHUTDOWN));
             }
             if let Some(counter) = pending_writes_by_file.get(&pending.ino_out)
                 && counter.fetch_sub(1, Ordering::Release) == 1
@@ -2249,7 +2257,7 @@ fn dispatch_read_job(
             && pending.state.claim_reply()
         {
             if let Some(reply) = pending.reply.take() {
-                reply.error(libc::EAGAIN);
+                reply.error(fuser::Errno::from_i32(libc::EAGAIN));
             }
             // Cancel single-flight if we were leader
             if let Some(key) = pending.read_key {
@@ -2326,7 +2334,7 @@ fn dispatch_copy_range_job(
             if pending.state.claim_reply()
                 && let Some(reply) = pending.reply.take()
             {
-                reply.error(libc::EAGAIN);
+                reply.error(fuser::Errno::from_i32(libc::EAGAIN));
             }
             // Decrement pending writes counter for barrier semantics
             if let Some(counter) = pending_writes_by_file.get(&pending.ino_out)
@@ -2422,7 +2430,7 @@ fn handle_read_completion(
                         in_flight.complete(&key, Err(errno));
                     }
 
-                    reply.error(errno);
+                    reply.error(fuser::Errno::from_i32(errno));
                 }
             }
 
@@ -2463,7 +2471,7 @@ fn handle_read_completion(
                 in_flight.complete(&key, Err(libc::EIO));
             }
 
-            reply.error(libc::EIO);
+            reply.error(fuser::Errno::from_i32(libc::EIO));
         }
     }
 }
@@ -2513,7 +2521,7 @@ fn handle_copy_range_completion(
                                 fh_out = fh_out,
                                 "Destination handle closed during copy_file_range"
                             );
-                            reply.error(libc::EBADF);
+                            reply.error(fuser::Errno::from_i32(libc::EBADF));
                             // Still restore the source reader
                             restore_reader(request_id, fh_in, reader, handle_table);
                             return;
@@ -2525,7 +2533,7 @@ fn handle_copy_range_completion(
                                 fh_out = fh_out,
                                 "Destination not opened for writing"
                             );
-                            reply.error(libc::EBADF);
+                            reply.error(fuser::Errno::from_i32(libc::EBADF));
                             drop(handle);
                             restore_reader(request_id, fh_in, reader, handle_table);
                             return;
@@ -2570,7 +2578,7 @@ fn handle_copy_range_completion(
                 }
                 Err(errno) => {
                     trace!(?request_id, errno, "copy_file_range read failed");
-                    reply.error(errno);
+                    reply.error(fuser::Errno::from_i32(errno));
                     // Still restore the source reader
                     restore_reader(request_id, fh_in, reader, handle_table);
                 }
@@ -2585,7 +2593,7 @@ fn handle_copy_range_completion(
         }
         None => {
             trace!(?request_id, "copy_file_range EIO (sender dropped)");
-            reply.error(libc::EIO);
+            reply.error(fuser::Errno::from_i32(libc::EIO));
         }
     }
 }
@@ -2787,7 +2795,11 @@ fn handle_structural_completion(
                             trace!(?request_id, "Entry created successfully");
                             match reply {
                                 StructuralReply::Entry(reply) => {
-                                    reply.entry(&Duration::from_secs(1), &attr, generation);
+                                    reply.entry(
+                                        &Duration::from_secs(1),
+                                        &attr,
+                                        fuser::Generation(generation),
+                                    );
                                 }
                                 _ => {
                                     error!(?request_id, "Mismatched reply type for Entry result");
@@ -2813,9 +2825,9 @@ fn handle_structural_completion(
                                     reply.created(
                                         &Duration::from_secs(1),
                                         &attr,
-                                        generation,
-                                        fh,
-                                        flags,
+                                        fuser::Generation(generation),
+                                        fuser::FileHandle(fh),
+                                        fuser::FopenFlags::from_bits_truncate(flags),
                                     );
                                 }
                                 _ => {
@@ -2905,7 +2917,12 @@ fn handle_hazardous_completion(
                 Ok(entries) => {
                     if let HazardousReply::Directory(mut r) = reply {
                         for entry in entries {
-                            if r.add(entry.inode, entry.offset, entry.file_type, &entry.name) {
+                            if r.add(
+                                fuser::INodeNo(entry.inode),
+                                entry.offset.cast_unsigned(),
+                                entry.file_type,
+                                &entry.name,
+                            ) {
                                 break;
                             }
                         }
@@ -2925,12 +2942,12 @@ fn handle_hazardous_completion(
                     if let HazardousReply::DirectoryPlus(mut r) = reply {
                         for entry in entries {
                             if r.add(
-                                entry.inode,
-                                entry.offset,
+                                fuser::INodeNo(entry.inode),
+                                entry.offset.cast_unsigned(),
                                 &entry.name,
                                 &entry.ttl,
                                 &entry.attr,
-                                entry.generation,
+                                fuser::Generation(entry.generation),
                             ) {
                                 break;
                             }

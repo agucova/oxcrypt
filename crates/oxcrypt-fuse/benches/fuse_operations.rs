@@ -17,7 +17,7 @@ use std::time::UNIX_EPOCH;
 
 fn make_test_attr(inode: u64) -> fuser::FileAttr {
     fuser::FileAttr {
-        ino: inode,
+        ino: fuser::INodeNo(inode),
         size: 0,
         blocks: 0,
         atime: UNIX_EPOCH,

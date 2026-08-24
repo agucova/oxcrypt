@@ -56,8 +56,7 @@ use dashmap::DashMap;
 use filetime::FileTime;
 use fuser::{
     FileAttr, FileType, Filesystem, KernelConfig, ReplyAttr, ReplyData, ReplyDirectory,
-    ReplyDirectoryPlus, ReplyEmpty, ReplyEntry, ReplyLseek, ReplyOpen, ReplyWrite, Request,
-    TimeOrNow,
+    ReplyDirectoryPlus, ReplyEmpty, ReplyEntry, ReplyLseek, ReplyOpen, ReplyWrite, TimeOrNow,
 };
 use libc::c_int;
 use oxcrypt_core::fs::encrypted_to_plaintext_size_or_zero;
@@ -170,7 +169,7 @@ impl HazardousHandler {
     fn make_dir_attr(&self, inode: u64, mtime: Option<SystemTime>) -> FileAttr {
         let time = mtime.unwrap_or_else(SystemTime::now);
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size: 0,
             blocks: 0,
             atime: time,
@@ -191,7 +190,7 @@ impl HazardousHandler {
     fn make_file_attr(&self, inode: u64, size: u64, mtime: Option<SystemTime>) -> FileAttr {
         let time = mtime.unwrap_or_else(SystemTime::now);
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size,
             blocks: size.div_ceil(u64::from(BLOCK_SIZE)),
             atime: time,
@@ -217,7 +216,7 @@ impl HazardousHandler {
     ) -> FileAttr {
         let time = mtime.unwrap_or_else(SystemTime::now);
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size: target_len,
             blocks: 0,
             atime: time,
@@ -1333,7 +1332,7 @@ impl CryptomatorFS {
     fn make_dir_attr(&self, inode: u64, mtime: Option<SystemTime>) -> FileAttr {
         let time = mtime.unwrap_or_else(SystemTime::now);
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size: 0,
             blocks: 0,
             atime: time,
@@ -1358,7 +1357,7 @@ impl CryptomatorFS {
     fn make_file_attr(&self, inode: u64, size: u64, mtime: Option<SystemTime>) -> FileAttr {
         let time = mtime.unwrap_or_else(SystemTime::now);
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size,
             blocks: size.div_ceil(u64::from(BLOCK_SIZE)),
             atime: time,
@@ -1428,7 +1427,7 @@ impl CryptomatorFS {
     ) -> FileAttr {
         let time = mtime.unwrap_or_else(SystemTime::now);
         FileAttr {
-            ino: inode,
+            ino: fuser::INodeNo(inode),
             size: target_len,
             blocks: 0,
             atime: time,
@@ -1735,7 +1734,7 @@ impl CryptomatorFS {
     ///
     /// Used for synchronous copy paths (ReadBuffer/WriteBuffer sources).
     fn copy_file_range_write_dest(
-        &mut self,
+        &self,
         ino_out: u64,
         fh_out: u64,
         offset_out: i64,
@@ -1743,13 +1742,13 @@ impl CryptomatorFS {
         reply: ReplyWrite,
     ) {
         let Some(mut handle) = self.handle_table.get_mut(&fh_out) else {
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
         let Some(buffer) = handle.as_write_buffer_mut() else {
             // Destination must be opened for writing
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
@@ -1815,7 +1814,7 @@ impl Filesystem for CryptomatorFS {
     /// - Returns `Ok(())` to allow mount to proceed
     ///
     /// # Compliance: ✓ COMPLIANT
-    fn init(&mut self, _req: &Request<'_>, config: &mut KernelConfig) -> Result<(), c_int> {
+    fn init(&mut self, _req: &fuser::Request, config: &mut KernelConfig) -> std::io::Result<()> {
         info!("FUSE filesystem initialized");
 
         // Start the scheduler for async request handling
@@ -1825,14 +1824,16 @@ impl Filesystem for CryptomatorFS {
         }
 
         // Enable async reads for better performance with concurrent readers
-        config.add_capabilities(fuser::consts::FUSE_ASYNC_READ).ok();
+        config
+            .add_capabilities(fuser::InitFlags::FUSE_ASYNC_READ)
+            .ok();
 
         // Enable writeback cache for better mmap support.
         // This ensures the kernel keeps the page cache consistent and enables
         // all mmap modes, which prevents SIGBUS crashes with applications like
         // SQLite that use mmap for WAL shared memory files.
         config
-            .add_capabilities(fuser::consts::FUSE_WRITEBACK_CACHE)
+            .add_capabilities(fuser::InitFlags::FUSE_WRITEBACK_CACHE)
             .ok();
 
         // Increase max background requests from default 16 to 32.
@@ -1881,14 +1882,21 @@ impl Filesystem for CryptomatorFS {
     /// - Calls `get_or_insert` which increments nlookup (correct per spec)
     /// - Uses negative cache to avoid repeated lookups for missing entries
     /// - Generation is always 0 (acceptable since we don't support NFS export)
-    fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
+        name: &OsStr,
+        reply: ReplyEntry,
+    ) {
+        let parent = parent.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
 
         let Some(name_str) = name.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -1897,7 +1905,7 @@ impl Filesystem for CryptomatorFS {
         // Check negative cache
         if self.attr_cache.is_negative(parent, name_str) {
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         }
 
@@ -1905,7 +1913,7 @@ impl Filesystem for CryptomatorFS {
             Ok((_inode, attr, _file_type)) => {
                 // nlookup is incremented in lookup_child via get_or_insert (correct per spec)
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.entry(&DEFAULT_ATTR_TTL, &attr, 0);
+                reply.entry(&DEFAULT_ATTR_TTL, &attr, fuser::Generation(0));
             }
             Err(e) => {
                 // Add to negative cache
@@ -1913,7 +1921,7 @@ impl Filesystem for CryptomatorFS {
                     .insert_negative(parent, name_str.to_string());
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(e.to_errno());
+                reply.error(fuser::Errno::from_i32(e.to_errno()));
             }
         }
         // Track inode table size for memory monitoring
@@ -1937,7 +1945,8 @@ impl Filesystem for CryptomatorFS {
     ///
     /// - Root inode (1) is never evicted
     /// - When nlookup reaches 0, inode is removed from the path↔inode mappings
-    fn forget(&mut self, _req: &Request<'_>, ino: u64, nlookup: u64) {
+    fn forget(&self, _req: &fuser::Request, ino: fuser::INodeNo, nlookup: u64) {
+        let ino = ino.0;
         trace!(inode = ino, nlookup = nlookup, "forget");
         self.inodes.forget(ino, nlookup);
         // Track inode table size for memory monitoring
@@ -1950,16 +1959,23 @@ impl Filesystem for CryptomatorFS {
     ///
     /// Semantically identical to multiple individual `forget` calls, but batched for
     /// performance. Each entry specifies a nodeid and its nlookup decrement count.
-    fn batch_forget(&mut self, _req: &Request<'_>, nodes: &[fuser::fuse_forget_one]) {
+    fn batch_forget(&self, _req: &fuser::Request, nodes: &[fuser::ForgetOne]) {
         trace!(count = nodes.len(), "batch_forget");
         for node in nodes {
-            self.inodes.forget(node.nodeid, node.nlookup);
+            self.inodes.forget(node.nodeid().0, node.nlookup());
         }
         // Track inode table size for memory monitoring
         self.vault_stats.set_inode_count(self.inodes.len() as u64);
     }
 
-    fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        _fh: Option<fuser::FileHandle>,
+        reply: ReplyAttr,
+    ) {
+        let ino = ino.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
         trace!(inode = ino, "getattr");
@@ -1992,7 +2008,7 @@ impl Filesystem for CryptomatorFS {
         let Some(entry) = self.inodes.get(ino) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
@@ -2019,7 +2035,7 @@ impl Filesystem for CryptomatorFS {
                             Err(exec_err) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         }
@@ -2057,14 +2073,16 @@ impl Filesystem for CryptomatorFS {
                         } else {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(libc::ENOENT);
+                            reply.error(fuser::Errno::from_i32(libc::ENOENT));
                             return;
                         }
                     }
                     Err(e) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(crate::error::vault_error_to_errno(&e));
+                        reply.error(fuser::Errno::from_i32(crate::error::vault_error_to_errno(
+                            &e,
+                        )));
                         return;
                     }
                 }
@@ -2090,7 +2108,7 @@ impl Filesystem for CryptomatorFS {
                             Err(exec_err) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         }
@@ -2105,13 +2123,15 @@ impl Filesystem for CryptomatorFS {
                     Ok(None) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::ENOENT);
+                        reply.error(fuser::Errno::from_i32(libc::ENOENT));
                         return;
                     }
                     Err(e) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(crate::error::vault_error_to_errno(&e));
+                        reply.error(fuser::Errno::from_i32(crate::error::vault_error_to_errno(
+                            &e,
+                        )));
                         return;
                     }
                 }
@@ -2135,18 +2155,19 @@ impl Filesystem for CryptomatorFS {
         reply.attr(&ttl, &attr);
     }
 
-    fn readlink(&mut self, _req: &Request<'_>, ino: u64, reply: ReplyData) {
+    fn readlink(&self, _req: &fuser::Request, ino: fuser::INodeNo, reply: ReplyData) {
+        let ino = ino.0;
         trace!(inode = ino, "readlink");
 
         let Some(entry) = self.inodes.get(ino) else {
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let (dir_id, name) = match &entry.kind {
             InodeKind::Symlink { dir_id, name } => (dir_id.clone(), name.clone()),
             _ => {
-                reply.error(libc::EINVAL);
+                reply.error(fuser::Errno::from_i32(libc::EINVAL));
                 return;
             }
         };
@@ -2159,10 +2180,12 @@ impl Filesystem for CryptomatorFS {
                 reply.data(target.as_bytes());
             }
             Ok(Err(e)) => {
-                reply.error(crate::error::vault_error_to_errno(&e));
+                reply.error(fuser::Errno::from_i32(crate::error::vault_error_to_errno(
+                    &e,
+                )));
             }
             Err(exec_err) => {
-                reply.error(exec_err.to_errno());
+                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
             }
         }
     }
@@ -2188,22 +2211,30 @@ impl Filesystem for CryptomatorFS {
     /// - For read-only opens: creates a streaming VaultFileReader
     /// - For write opens: creates a WriteBuffer with existing content (or empty if O_TRUNC)
     /// - File handles are stored in FuseHandleTable
-    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: ReplyOpen) {
+    fn open(
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        flags: fuser::OpenFlags,
+        reply: ReplyOpen,
+    ) {
+        let ino = ino.0;
+        let flags = flags.0;
         trace!(inode = ino, flags = flags, "open");
 
         let Some(entry) = self.inodes.get(ino) else {
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let (dir_id, name) = match &entry.kind {
             InodeKind::File { dir_id, name } => (dir_id.clone(), name.clone()),
             InodeKind::Directory { .. } | InodeKind::Root => {
-                reply.error(libc::EISDIR);
+                reply.error(fuser::Errno::from_i32(libc::EISDIR));
                 return;
             }
             InodeKind::Symlink { .. } => {
-                reply.error(libc::EINVAL);
+                reply.error(fuser::Errno::from_i32(libc::EINVAL));
                 return;
             }
         };
@@ -2242,7 +2273,7 @@ impl Filesystem for CryptomatorFS {
             // Track initial buffer size for mmap consistency
             self.update_buffer_size(ino, initial_size);
             self.vault_stats.record_file_open();
-            reply.opened(fh, 0);
+            reply.opened(fuser::FileHandle(fh), fuser::FopenFlags::empty());
         } else {
             // Open for reading - use streaming reader without holding vault locks.
             // We use the synchronous reader to avoid Tokio runtime dependencies in the executor.
@@ -2250,7 +2281,7 @@ impl Filesystem for CryptomatorFS {
             let sync_ops = match self.get_or_create_sync_ops() {
                 Ok(ops) => ops,
                 Err(e) => {
-                    reply.error(e.to_errno());
+                    reply.error(fuser::Errno::from_i32(e.to_errno()));
                     return;
                 }
             };
@@ -2263,31 +2294,36 @@ impl Filesystem for CryptomatorFS {
                         .insert_auto(FuseHandle::Reader(Box::new(reader)));
                     self.open_handle_tracker.add_handle(ino);
                     self.vault_stats.record_file_open();
-                    reply.opened(fh, 0);
+                    reply.opened(fuser::FileHandle(fh), fuser::FopenFlags::empty());
                 }
                 Err(e) => {
-                    reply.error(crate::error::vault_error_to_errno(&e));
+                    reply.error(fuser::Errno::from_i32(crate::error::vault_error_to_errno(
+                        &e,
+                    )));
                 }
             }
         }
     }
 
     fn read(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        offset: u64,
         size: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _flags: fuser::OpenFlags,
+        _lock_owner: Option<fuser::LockOwner>,
         reply: ReplyData,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let offset = offset.cast_signed();
         trace!(inode = ino, fh = fh, offset = offset, size = size, "read");
 
         // Get the handle from our table
         let Some(mut handle) = self.handle_table.get_mut(&fh) else {
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
@@ -2332,7 +2368,7 @@ impl Filesystem for CryptomatorFS {
                 // Reader is currently being used by the scheduler for a previous read
                 // Return EAGAIN to tell the kernel to retry
                 trace!(fh, "Read while reader is loaned, returning EAGAIN");
-                reply.error(libc::EAGAIN);
+                reply.error(fuser::Errno::from_i32(libc::EAGAIN));
             }
             FuseHandle::ReadBuffer(content) => {
                 // Read from in-memory buffer (preferred path, no locks held)
@@ -2380,15 +2416,19 @@ impl Filesystem for CryptomatorFS {
     /// - For write buffers: writes dirty data to vault before releasing
     /// - For readers: simply drops the handle
     fn release(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        flags: i32,
-        lock_owner: Option<u64>,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        flags: fuser::OpenFlags,
+        lock_owner: Option<fuser::LockOwner>,
         flush: bool,
         reply: ReplyEmpty,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let flags = flags.0;
+        let lock_owner = lock_owner.map(|l| l.0);
         trace!(fh = fh, "release (enqueuing to hazardous lane)");
 
         let op = HazardousOp::Release {
@@ -2420,22 +2460,29 @@ impl Filesystem for CryptomatorFS {
         }
     }
 
-    fn opendir(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
+    fn opendir(
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        _flags: fuser::OpenFlags,
+        reply: ReplyOpen,
+    ) {
+        let ino = ino.0;
         trace!(inode = ino, "opendir");
 
         // Verify it's a directory
         let Some(entry) = self.inodes.get(ino) else {
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         match &entry.kind {
             InodeKind::Root | InodeKind::Directory { .. } => {
                 self.vault_stats.record_dir_open();
-                reply.opened(0, 0);
+                reply.opened(fuser::FileHandle(0), fuser::FopenFlags::empty());
             }
             _ => {
-                reply.error(libc::ENOTDIR);
+                reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             }
         }
     }
@@ -2456,13 +2503,16 @@ impl Filesystem for CryptomatorFS {
     /// Uses `get_or_insert_no_lookup_inc()` which allocates or retrieves inodes WITHOUT
     /// incrementing the nlookup count, as required by the FUSE specification.
     fn readdir(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        offset: u64,
         mut reply: ReplyDirectory,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let offset = offset.cast_signed();
         // FAST PATH: Check dir_cache before enqueueing to scheduler.
         // This avoids scheduler overhead for cached directory listings.
         if let Some(cached_entries) = self.dir_cache.get(ino) {
@@ -2550,7 +2600,12 @@ impl Filesystem for CryptomatorFS {
                 };
 
                 let next_offset = Self::name_to_offset(&name);
-                if reply.add(entry_inode, next_offset, file_type, &name) {
+                if reply.add(
+                    fuser::INodeNo(entry_inode),
+                    next_offset.cast_unsigned(),
+                    file_type,
+                    &name,
+                ) {
                     break; // Buffer full
                 }
             }
@@ -2581,7 +2636,7 @@ impl Filesystem for CryptomatorFS {
         } else {
             error!("Scheduler missing in readdir");
             if let HazardousReply::Directory(r) = reply_handle {
-                r.error(libc::EIO);
+                r.error(fuser::Errno::from_i32(libc::EIO));
             }
         }
     }
@@ -2601,13 +2656,16 @@ impl Filesystem for CryptomatorFS {
     /// - Correctly increments nlookup via `get_or_insert()` for non-. entries
     /// - "." and ".." use existing inodes without incrementing nlookup
     fn readdirplus(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        offset: u64,
         reply: ReplyDirectoryPlus,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let offset = offset.cast_signed();
         trace!(
             inode = ino,
             offset = offset,
@@ -2628,17 +2686,17 @@ impl Filesystem for CryptomatorFS {
         } else {
             error!("Scheduler missing in readdirplus");
             if let HazardousReply::DirectoryPlus(r) = reply_handle {
-                r.error(libc::EIO);
+                r.error(fuser::Errno::from_i32(libc::EIO));
             }
         }
     }
 
     fn releasedir(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
-        _fh: u64,
-        _flags: i32,
+        &self,
+        _req: &fuser::Request,
+        _ino: fuser::INodeNo,
+        _fh: fuser::FileHandle,
+        _flags: fuser::OpenFlags,
         reply: ReplyEmpty,
     ) {
         self.vault_stats.record_dir_close();
@@ -2663,7 +2721,17 @@ impl Filesystem for CryptomatorFS {
     /// - Writes dirty buffer contents to the vault
     /// - Does not release the file handle (that's `release`'s job)
     /// - Lock release is a no-op since we don't implement POSIX locks
-    fn flush(&mut self, _req: &Request<'_>, ino: u64, fh: u64, lock_owner: u64, reply: ReplyEmpty) {
+    fn flush(
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        lock_owner: fuser::LockOwner,
+        reply: ReplyEmpty,
+    ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let lock_owner = lock_owner.0;
         trace!(inode = ino, fh = fh, "flush (enqueuing to hazardous lane)");
 
         let op = HazardousOp::Flush {
@@ -2684,12 +2752,21 @@ impl Filesystem for CryptomatorFS {
         } else {
             error!("Scheduler missing in flush");
             if let HazardousReply::Empty(r) = reply_handle {
-                r.error(libc::EIO);
+                r.error(fuser::Errno::from_i32(libc::EIO));
             }
         }
     }
 
-    fn fsync(&mut self, _req: &Request<'_>, ino: u64, fh: u64, datasync: bool, reply: ReplyEmpty) {
+    fn fsync(
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        datasync: bool,
+        reply: ReplyEmpty,
+    ) {
+        let ino = ino.0;
+        let fh = fh.0;
         trace!(inode = ino, fh = fh, "fsync (enqueuing to hazardous lane)");
 
         let op = HazardousOp::Fsync { ino, fh, datasync };
@@ -2706,26 +2783,35 @@ impl Filesystem for CryptomatorFS {
         } else {
             error!("Scheduler missing in fsync");
             if let HazardousReply::Empty(r) = reply_handle {
-                r.error(libc::EIO);
+                r.error(fuser::Errno::from_i32(libc::EIO));
             }
         }
     }
 
     fn fsyncdir(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        _fh: u64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        _fh: fuser::FileHandle,
         _datasync: bool,
         reply: ReplyEmpty,
     ) {
+        let ino = ino.0;
         trace!(inode = ino, "fsyncdir");
         // Directories are written synchronously in Cryptomator (dir.c9r files),
         // so fsyncdir is a no-op.
         reply.ok();
     }
 
-    fn access(&mut self, _req: &Request<'_>, ino: u64, mask: i32, reply: ReplyEmpty) {
+    fn access(
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        mask: fuser::AccessFlags,
+        reply: ReplyEmpty,
+    ) {
+        let ino = ino.0;
+        let mask = mask.bits();
         trace!(inode = ino, mask = mask, "access");
 
         // Cryptomator doesn't store Unix permissions, so we use synthetic defaults:
@@ -2738,7 +2824,7 @@ impl Filesystem for CryptomatorFS {
         if self.inodes.get(ino).is_some() {
             reply.ok();
         } else {
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
         }
     }
 
@@ -2767,9 +2853,9 @@ impl Filesystem for CryptomatorFS {
     /// 1. Cryptomator doesn't store Unix permissions at all
     /// 2. Our synthetic permissions never include setuid/setgid bits
     fn setattr(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
         mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
@@ -2777,13 +2863,15 @@ impl Filesystem for CryptomatorFS {
         atime: Option<TimeOrNow>,
         mtime: Option<TimeOrNow>,
         _ctime: Option<SystemTime>,
-        fh: Option<u64>,
+        fh: Option<fuser::FileHandle>,
         _crtime: Option<SystemTime>,
         _chgtime: Option<SystemTime>,
         _bkuptime: Option<SystemTime>,
-        _flags: Option<u32>,
+        _flags: Option<fuser::BsdFileFlags>,
         reply: ReplyAttr,
     ) {
+        let ino = ino.0;
+        let fh = fh.map(|f| f.0);
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
         trace!(
@@ -2804,7 +2892,7 @@ impl Filesystem for CryptomatorFS {
         let Some(entry) = self.inodes.get(ino) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
@@ -2895,7 +2983,9 @@ impl Filesystem for CryptomatorFS {
                                     }
                                     self.vault_stats.record_error();
                                     self.vault_stats.record_metadata_latency(start.elapsed());
-                                    reply.error(crate::error::write_error_to_errno(&e));
+                                    reply.error(fuser::Errno::from_i32(
+                                        crate::error::write_error_to_errno(&e),
+                                    ));
                                 }
                                 Err(exec_err) => {
                                     if let Some(mut handle) = self.handle_table.get_mut(&fh)
@@ -2906,7 +2996,7 @@ impl Filesystem for CryptomatorFS {
                                     }
                                     self.vault_stats.record_error();
                                     self.vault_stats.record_metadata_latency(start.elapsed());
-                                    reply.error(exec_err.to_errno());
+                                    reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 }
                             }
                             return;
@@ -2989,12 +3079,14 @@ impl Filesystem for CryptomatorFS {
                         Ok(Err(e)) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(crate::error::write_error_to_errno(&e));
+                            reply.error(fuser::Errno::from_i32(
+                                crate::error::write_error_to_errno(&e),
+                            ));
                         }
                         Err(exec_err) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(exec_err.to_errno());
+                            reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                         }
                     }
                     return;
@@ -3003,14 +3095,14 @@ impl Filesystem for CryptomatorFS {
                     // Can't truncate directories
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::EISDIR);
+                    reply.error(fuser::Errno::from_i32(libc::EISDIR));
                     return;
                 }
                 InodeKind::Symlink { .. } => {
                     // Can't truncate symlinks
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::EINVAL);
+                    reply.error(fuser::Errno::from_i32(libc::EINVAL));
                     return;
                 }
             }
@@ -3062,13 +3154,15 @@ impl Filesystem for CryptomatorFS {
                         Ok(Err(e)) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(crate::error::vault_error_to_errno(&e));
+                            reply.error(fuser::Errno::from_i32(
+                                crate::error::vault_error_to_errno(&e),
+                            ));
                             return;
                         }
                         Err(exec_err) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(exec_err.to_errno());
+                            reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                             return;
                         }
                     }
@@ -3095,19 +3189,21 @@ impl Filesystem for CryptomatorFS {
                         Ok(Ok(None)) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(libc::ENOENT);
+                            reply.error(fuser::Errno::from_i32(libc::ENOENT));
                             return;
                         }
                         Ok(Err(e)) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(crate::error::vault_error_to_errno(&e));
+                            reply.error(fuser::Errno::from_i32(
+                                crate::error::vault_error_to_errno(&e),
+                            ));
                             return;
                         }
                         Err(exec_err) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(exec_err.to_errno());
+                            reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                             return;
                         }
                     }
@@ -3166,7 +3262,7 @@ impl Filesystem for CryptomatorFS {
         }
     }
 
-    fn statfs(&mut self, _req: &Request<'_>, _ino: u64, reply: fuser::ReplyStatfs) {
+    fn statfs(&self, _req: &fuser::Request, _ino: fuser::INodeNo, reply: fuser::ReplyStatfs) {
         // Query real filesystem statistics from underlying storage
         match nix::sys::statvfs::statvfs(&self.vault_path) {
             Ok(stat) => {
@@ -3243,22 +3339,23 @@ impl Filesystem for CryptomatorFS {
     /// - Allocates inode via `get_or_insert` (increments nlookup, correct per spec)
     /// - Invalidates parent's negative cache and dir listing cache
     fn create(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
         name: &OsStr,
         _mode: u32,
         _umask: u32,
         _flags: i32,
         reply: fuser::ReplyCreate,
     ) {
+        let parent = parent.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
 
         let Some(name_str) = name.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -3268,14 +3365,14 @@ impl Filesystem for CryptomatorFS {
         let Some(parent_entry) = self.inodes.get(parent) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(dir_id) = parent_entry.dir_id() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
         let parent_path = parent_entry.path.clone();
@@ -3287,7 +3384,7 @@ impl Filesystem for CryptomatorFS {
         if self.inodes.get_inode(&child_path).is_some() {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EEXIST);
+            reply.error(fuser::Errno::from_i32(libc::EEXIST));
             return;
         }
 
@@ -3313,7 +3410,7 @@ impl Filesystem for CryptomatorFS {
         if exists {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EEXIST);
+            reply.error(fuser::Errno::from_i32(libc::EEXIST));
             return;
         }
 
@@ -3346,21 +3443,30 @@ impl Filesystem for CryptomatorFS {
         self.dir_cache.invalidate(parent);
 
         self.vault_stats.record_metadata_latency(start.elapsed());
-        reply.created(&DEFAULT_ATTR_TTL, &attr, 0, fh, 0);
+        reply.created(
+            &DEFAULT_ATTR_TTL,
+            &attr,
+            fuser::Generation(0),
+            fuser::FileHandle(fh),
+            fuser::FopenFlags::empty(),
+        );
     }
 
     fn write(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        offset: u64,
         data: &[u8],
-        _write_flags: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _write_flags: fuser::WriteFlags,
+        _flags: fuser::OpenFlags,
+        _lock_owner: Option<fuser::LockOwner>,
         reply: ReplyWrite,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let offset = offset.cast_signed();
         trace!(
             inode = ino,
             fh = fh,
@@ -3371,13 +3477,13 @@ impl Filesystem for CryptomatorFS {
 
         // Get the handle from our table
         let Some(mut handle) = self.handle_table.get_mut(&fh) else {
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
         let Some(_buffer) = handle.as_write_buffer_mut() else {
             // Trying to write to a read-only handle
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
@@ -3402,21 +3508,21 @@ impl Filesystem for CryptomatorFS {
                     Err(errno) => {
                         // Flush failed - can't continue with write
                         warn!(ino, errno, "Auto-flush failed during write budget recovery");
-                        reply.error(errno);
+                        reply.error(fuser::Errno::from_i32(errno));
                         return;
                     }
                 }
 
                 // Re-acquire handle after flush
                 let Some(reacquired) = self.handle_table.get_mut(&fh) else {
-                    reply.error(libc::EBADF);
+                    reply.error(fuser::Errno::from_i32(libc::EBADF));
                     return;
                 };
                 handle = reacquired;
 
                 // Re-check that we still have a write buffer
                 if handle.as_write_buffer_mut().is_none() {
-                    reply.error(libc::EBADF);
+                    reply.error(fuser::Errno::from_i32(libc::EBADF));
                     return;
                 }
             }
@@ -3424,7 +3530,7 @@ impl Filesystem for CryptomatorFS {
 
         // Re-get buffer reference (may have been invalidated by auto-flush path)
         let Some(buffer) = handle.as_write_buffer_mut() else {
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
@@ -3469,9 +3575,9 @@ impl Filesystem for CryptomatorFS {
     /// This is called when the kernel can't use create() for some reason.
     /// Adding this to debug if macOS is using mknod instead of create.
     fn mknod(
-        &mut self,
-        _req: &Request<'_>,
-        _parent: u64,
+        &self,
+        _req: &fuser::Request,
+        _parent: fuser::INodeNo,
         _name: &OsStr,
         _mode: u32,
         _umask: u32,
@@ -3480,25 +3586,26 @@ impl Filesystem for CryptomatorFS {
     ) {
         // mknod is not used for regular files when create() is implemented
         // Returning ENOSYS causes the kernel to fall back to create() for regular files
-        reply.error(libc::ENOSYS);
+        reply.error(fuser::Errno::from_i32(libc::ENOSYS));
     }
 
     fn mkdir(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
         name: &OsStr,
         _mode: u32,
         _umask: u32,
         reply: ReplyEntry,
     ) {
+        let parent = parent.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
 
         let Some(name_str) = name.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -3508,14 +3615,14 @@ impl Filesystem for CryptomatorFS {
         let Some(parent_entry) = self.inodes.get(parent) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(parent_dir_id) = parent_entry.dir_id() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
         let parent_path = parent_entry.path.clone();
@@ -3527,7 +3634,7 @@ impl Filesystem for CryptomatorFS {
         if self.inodes.get_inode(&child_path).is_some() {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EEXIST);
+            reply.error(fuser::Errno::from_i32(libc::EEXIST));
             return;
         }
 
@@ -3553,7 +3660,7 @@ impl Filesystem for CryptomatorFS {
         if exists {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EEXIST);
+            reply.error(fuser::Errno::from_i32(libc::EEXIST));
             return;
         }
 
@@ -3593,17 +3700,19 @@ impl Filesystem for CryptomatorFS {
                 self.dir_cache.invalidate(parent);
 
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.entry(&DEFAULT_ATTR_TTL, &attr, 0);
+                reply.entry(&DEFAULT_ATTR_TTL, &attr, fuser::Generation(0));
             }
             Ok(Err(e)) => {
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(crate::error::write_error_to_errno(&e));
+                reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                    &e,
+                )));
             }
             Err(exec_err) => {
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(exec_err.to_errno());
+                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
             }
         }
     }
@@ -3622,14 +3731,21 @@ impl Filesystem for CryptomatorFS {
     /// - Tries to delete as file first, then as symlink
     /// - Invalidates path mapping (but inode entry remains until `forget`)
     /// - Invalidates parent's directory cache
-    fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn unlink(
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
+        name: &OsStr,
+        reply: ReplyEmpty,
+    ) {
+        let parent = parent.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
 
         let Some(name_str) = name.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -3639,14 +3755,14 @@ impl Filesystem for CryptomatorFS {
         let Some(parent_entry) = self.inodes.get(parent) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(dir_id) = parent_entry.dir_id() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
         let parent_path = parent_entry.path.clone();
@@ -3670,7 +3786,7 @@ impl Filesystem for CryptomatorFS {
             // Notify kernel to invalidate its dcache entry for this file
             // This forces the kernel to call lookup() again, which will return ENOENT
             if let Some(notifier) = self.notifier.get()
-                && let Err(e) = notifier.inval_entry(parent, name)
+                && let Err(e) = notifier.inval_entry(fuser::INodeNo(parent), name)
             {
                 trace!("Failed to notify kernel of deferred deletion: {}", e);
             }
@@ -3697,7 +3813,8 @@ impl Filesystem for CryptomatorFS {
                 if let Some(notifier) = self.notifier.get() {
                     // Use child_inode if available, otherwise skip notification
                     if let Some(ino) = child_inode
-                        && let Err(e) = notifier.delete(parent, ino, name)
+                        && let Err(e) =
+                            notifier.delete(fuser::INodeNo(parent), fuser::INodeNo(ino), name)
                     {
                         trace!("Failed to notify kernel of deletion (file): {}", e);
                     }
@@ -3723,7 +3840,11 @@ impl Filesystem for CryptomatorFS {
                         if let Some(notifier) = self.notifier.get() {
                             // Use child_inode if available, otherwise skip notification
                             if let Some(ino) = child_inode
-                                && let Err(e) = notifier.delete(parent, ino, name)
+                                && let Err(e) = notifier.delete(
+                                    fuser::INodeNo(parent),
+                                    fuser::INodeNo(ino),
+                                    name,
+                                )
                             {
                                 trace!("Failed to notify kernel of deletion (symlink): {}", e);
                             }
@@ -3734,12 +3855,14 @@ impl Filesystem for CryptomatorFS {
                     Ok(Err(e)) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(crate::error::write_error_to_errno(&e));
+                        reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                            &e,
+                        )));
                     }
                     Err(exec_err) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(exec_err.to_errno());
+                        reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                     }
                 }
             }
@@ -3762,14 +3885,21 @@ impl Filesystem for CryptomatorFS {
     ///   with ENOTEMPTY even though user sees directory as empty.
     /// - Delegates to vault's `delete_directory` which checks for empty
     /// - Invalidates path mapping and parent's directory cache
-    fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn rmdir(
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
+        name: &OsStr,
+        reply: ReplyEmpty,
+    ) {
+        let parent = parent.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
 
         let Some(name_str) = name.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -3779,14 +3909,14 @@ impl Filesystem for CryptomatorFS {
         let Some(parent_entry) = self.inodes.get(parent) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(parent_dir_id) = parent_entry.dir_id() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
         let parent_path = parent_entry.path.clone();
@@ -3809,19 +3939,21 @@ impl Filesystem for CryptomatorFS {
                 Ok(Ok(None)) => {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(libc::ENOENT);
+                    reply.error(fuser::Errno::from_i32(libc::ENOENT));
                     return;
                 }
                 Ok(Err(e)) => {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(crate::error::vault_error_to_errno(&e));
+                    reply.error(fuser::Errno::from_i32(crate::error::vault_error_to_errno(
+                        &e,
+                    )));
                     return;
                 }
                 Err(exec_err) => {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(exec_err.to_errno());
+                    reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                     return;
                 }
             };
@@ -3910,7 +4042,8 @@ impl Filesystem for CryptomatorFS {
                 // This prevents kernel from caching stale inode numbers across iterations
                 if let Some(notifier) = self.notifier.get()
                     && let Some(ino) = child_inode
-                    && let Err(e) = notifier.delete(parent, ino, name)
+                    && let Err(e) =
+                        notifier.delete(fuser::INodeNo(parent), fuser::INodeNo(ino), name)
                 {
                     trace!("Failed to notify kernel of directory deletion: {}", e);
                 }
@@ -3920,31 +4053,34 @@ impl Filesystem for CryptomatorFS {
             Ok(Err(e)) => {
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(crate::error::write_error_to_errno(&e));
+                reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                    &e,
+                )));
             }
             Err(exec_err) => {
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(exec_err.to_errno());
+                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
             }
         }
     }
 
     fn symlink(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
         link_name: &OsStr,
         target: &Path,
         reply: ReplyEntry,
     ) {
+        let parent = parent.0;
         let Some(name_str) = link_name.to_str() else {
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
         let Some(target_str) = target.to_str() else {
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -3962,12 +4098,12 @@ impl Filesystem for CryptomatorFS {
                 "symlink: parent inode={} NOT FOUND in InodeTable (kernel passed stale inode?)",
                 parent
             );
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(dir_id) = parent_entry.dir_id() else {
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
 
@@ -3986,7 +4122,7 @@ impl Filesystem for CryptomatorFS {
         // This is needed because macOS FUSE doesn't always call lookup before symlink
         let child_path = parent_path.join(name_str);
         if self.inodes.get_inode(&child_path).is_some() {
-            reply.error(libc::EEXIST);
+            reply.error(fuser::Errno::from_i32(libc::EEXIST));
             return;
         }
 
@@ -4010,7 +4146,7 @@ impl Filesystem for CryptomatorFS {
         };
 
         if exists {
-            reply.error(libc::EEXIST);
+            reply.error(fuser::Errno::from_i32(libc::EEXIST));
             return;
         }
 
@@ -4043,13 +4179,15 @@ impl Filesystem for CryptomatorFS {
                 self.attr_cache.remove_negative(parent, name_str);
                 self.dir_cache.invalidate(parent);
 
-                reply.entry(&DEFAULT_ATTR_TTL, &attr, 0);
+                reply.entry(&DEFAULT_ATTR_TTL, &attr, fuser::Generation(0));
             }
             Ok(Err(e)) => {
-                reply.error(crate::error::write_error_to_errno(&e));
+                reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                    &e,
+                )));
             }
             Err(exec_err) => {
-                reply.error(exec_err.to_errno());
+                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
             }
         }
     }
@@ -4074,17 +4212,17 @@ impl Filesystem for CryptomatorFS {
     /// **Returns**: ENOSYS (function not implemented) without logging, since this is
     /// expected and applications handle it gracefully.
     fn link(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
-        _newparent: u64,
+        &self,
+        _req: &fuser::Request,
+        _ino: fuser::INodeNo,
+        _newparent: fuser::INodeNo,
         _newname: &OsStr,
         reply: ReplyEntry,
     ) {
         // Silently return ENOSYS - hardlinks not supported by Cryptomator format.
         // No trace/warn logging since this is expected (git operations frequently try
         // to use hardlinks as an optimization, then fall back to copying).
-        reply.error(libc::ENOSYS);
+        reply.error(fuser::Errno::from_i32(libc::ENOSYS));
     }
 
     /// Rename a file or directory.
@@ -4117,29 +4255,31 @@ impl Filesystem for CryptomatorFS {
     // RENAME_NOREPLACE); the underscore keeps macOS builds warning-free.
     #[allow(clippy::used_underscore_binding)]
     fn rename(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &fuser::Request,
+        parent: fuser::INodeNo,
         name: &OsStr,
-        newparent: u64,
+        newparent: fuser::INodeNo,
         newname: &OsStr,
-        _flags: u32,
+        _flags: fuser::RenameFlags,
         reply: ReplyEmpty,
     ) {
+        let parent = parent.0;
+        let newparent = newparent.0;
         let start = Instant::now();
         self.vault_stats.record_metadata_op();
 
         let Some(name_str) = name.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
         let Some(newname_str) = newname.to_str() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::EINVAL);
+            reply.error(fuser::Errno::from_i32(libc::EINVAL));
             return;
         };
 
@@ -4155,14 +4295,14 @@ impl Filesystem for CryptomatorFS {
         let Some(parent_entry) = self.inodes.get(parent) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(src_dir_id) = parent_entry.dir_id() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
         let src_parent_path = parent_entry.path.clone();
@@ -4172,14 +4312,14 @@ impl Filesystem for CryptomatorFS {
         let Some(newparent_entry) = self.inodes.get(newparent) else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let Some(dest_dir_id) = newparent_entry.dir_id() else {
             self.vault_stats.record_error();
             self.vault_stats.record_metadata_latency(start.elapsed());
-            reply.error(libc::ENOTDIR);
+            reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
             return;
         };
         let dest_parent_path = newparent_entry.path.clone();
@@ -4486,13 +4626,13 @@ impl Filesystem for CryptomatorFS {
                         Ok(Err(e)) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(e.to_errno());
+                            reply.error(fuser::Errno::from_i32(e.to_errno()));
                             return;
                         }
                         Err(exec_err) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(exec_err.to_errno());
+                            reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                             return;
                         }
                     };
@@ -4512,13 +4652,13 @@ impl Filesystem for CryptomatorFS {
                         Ok(Err(e)) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(e.to_errno());
+                            reply.error(fuser::Errno::from_i32(e.to_errno()));
                             return;
                         }
                         Err(exec_err) => {
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(exec_err.to_errno());
+                            reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                             return;
                         }
                     };
@@ -4538,13 +4678,13 @@ impl Filesystem for CryptomatorFS {
                             Ok(Err(e)) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(e.to_errno());
+                                reply.error(fuser::Errno::from_i32(e.to_errno()));
                                 return;
                             }
                             Err(exec_err) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         };
@@ -4555,7 +4695,7 @@ impl Filesystem for CryptomatorFS {
                             // Source doesn't exist
                             self.vault_stats.record_error();
                             self.vault_stats.record_metadata_latency(start.elapsed());
-                            reply.error(libc::ENOENT);
+                            reply.error(fuser::Errno::from_i32(libc::ENOENT));
                             return;
                         }
                     }
@@ -4584,13 +4724,13 @@ impl Filesystem for CryptomatorFS {
                     Ok(Err(e)) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(e.to_errno());
+                        reply.error(fuser::Errno::from_i32(e.to_errno()));
                         return;
                     }
                     Err(exec_err) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(exec_err.to_errno());
+                        reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                         return;
                     }
                 };
@@ -4616,14 +4756,14 @@ impl Filesystem for CryptomatorFS {
                     } else {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(errno);
+                        reply.error(fuser::Errno::from_i32(errno));
                         return;
                     }
                 }
                 Err(exec_err) => {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(exec_err.to_errno());
+                    reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                     return;
                 }
             };
@@ -4647,14 +4787,14 @@ impl Filesystem for CryptomatorFS {
                     } else {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(errno);
+                        reply.error(fuser::Errno::from_i32(errno));
                         return;
                     }
                 }
                 Err(exec_err) => {
                     self.vault_stats.record_error();
                     self.vault_stats.record_metadata_latency(start.elapsed());
-                    reply.error(exec_err.to_errno());
+                    reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                     return;
                 }
             };
@@ -4675,13 +4815,15 @@ impl Filesystem for CryptomatorFS {
                                 // If deletion failed (e.g., not empty), return error
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(crate::error::write_error_to_errno(&e));
+                                reply.error(fuser::Errno::from_i32(
+                                    crate::error::write_error_to_errno(&e),
+                                ));
                                 return;
                             }
                             Err(exec_err) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         }
@@ -4696,7 +4838,7 @@ impl Filesystem for CryptomatorFS {
                         // file/symlink -> dir: EISDIR
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::EISDIR);
+                        reply.error(fuser::Errno::from_i32(libc::EISDIR));
                         return;
                     }
                 }
@@ -4714,13 +4856,15 @@ impl Filesystem for CryptomatorFS {
                             Ok(Err(e)) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(crate::error::write_error_to_errno(&e));
+                                reply.error(fuser::Errno::from_i32(
+                                    crate::error::write_error_to_errno(&e),
+                                ));
                                 return;
                             }
                             Err(exec_err) => {
                                 self.vault_stats.record_error();
                                 self.vault_stats.record_metadata_latency(start.elapsed());
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         }
@@ -4735,7 +4879,7 @@ impl Filesystem for CryptomatorFS {
                         // dir -> file: ENOTDIR
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(libc::ENOTDIR);
+                        reply.error(fuser::Errno::from_i32(libc::ENOTDIR));
                         return;
                     }
                 }
@@ -4751,13 +4895,15 @@ impl Filesystem for CryptomatorFS {
                     Ok(Err(e)) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(crate::error::write_error_to_errno(&e));
+                        reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                            &e,
+                        )));
                         return;
                     }
                     Err(exec_err) => {
                         self.vault_stats.record_error();
                         self.vault_stats.record_metadata_latency(start.elapsed());
-                        reply.error(exec_err.to_errno());
+                        reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                         return;
                     }
                 }
@@ -4881,26 +5027,32 @@ impl Filesystem for CryptomatorFS {
             Ok(Err(e)) => {
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(crate::error::write_error_to_errno(&e));
+                reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                    &e,
+                )));
             }
             Err(exec_err) => {
                 self.vault_stats.record_error();
                 self.vault_stats.record_metadata_latency(start.elapsed());
-                reply.error(exec_err.to_errno());
+                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
             }
         }
     }
 
     fn fallocate(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
-        length: i64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
+        offset: u64,
+        length: u64,
         mode: i32,
         reply: ReplyEmpty,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
+        let offset = offset.cast_signed();
+        let length = length.cast_signed();
         trace!(
             inode = ino,
             fh = fh,
@@ -4914,24 +5066,24 @@ impl Filesystem for CryptomatorFS {
         // FALLOC_FL_PUNCH_HOLE and other modes are not supported
         // because Cryptomator doesn't support sparse files.
         if mode != 0 {
-            reply.error(libc::ENOTSUP);
+            reply.error(fuser::Errno::from_i32(libc::ENOTSUP));
             return;
         }
 
         // Get inode info
         let Some(entry) = self.inodes.get(ino) else {
-            reply.error(libc::ENOENT);
+            reply.error(fuser::Errno::from_i32(libc::ENOENT));
             return;
         };
 
         let (dir_id, name) = match &entry.kind {
             InodeKind::File { dir_id, name } => (dir_id.clone(), name.clone()),
             InodeKind::Directory { .. } | InodeKind::Root => {
-                reply.error(libc::EISDIR);
+                reply.error(fuser::Errno::from_i32(libc::EISDIR));
                 return;
             }
             InodeKind::Symlink { .. } => {
-                reply.error(libc::EINVAL);
+                reply.error(fuser::Errno::from_i32(libc::EINVAL));
                 return;
             }
         };
@@ -4996,10 +5148,12 @@ impl Filesystem for CryptomatorFS {
                     reply.ok();
                 }
                 Ok(Err(e)) => {
-                    reply.error(crate::error::write_error_to_errno(&e));
+                    reply.error(fuser::Errno::from_i32(crate::error::write_error_to_errno(
+                        &e,
+                    )));
                 }
                 Err(exec_err) => {
-                    reply.error(exec_err.to_errno());
+                    reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                 }
             }
         } else {
@@ -5009,18 +5163,24 @@ impl Filesystem for CryptomatorFS {
     }
 
     fn copy_file_range(
-        &mut self,
-        _req: &Request<'_>,
-        ino_in: u64,
-        fh_in: u64,
-        offset_in: i64,
-        ino_out: u64,
-        fh_out: u64,
-        offset_out: i64,
+        &self,
+        _req: &fuser::Request,
+        ino_in: fuser::INodeNo,
+        fh_in: fuser::FileHandle,
+        offset_in: u64,
+        ino_out: fuser::INodeNo,
+        fh_out: fuser::FileHandle,
+        offset_out: u64,
         len: u64,
-        _flags: u32,
+        _flags: fuser::CopyFileRangeFlags,
         reply: ReplyWrite,
     ) {
+        let ino_in = ino_in.0;
+        let fh_in = fh_in.0;
+        let offset_in = offset_in.cast_signed();
+        let ino_out = ino_out.0;
+        let fh_out = fh_out.0;
+        let offset_out = offset_out.cast_signed();
         trace!(
             ino_in = ino_in,
             ino_out = ino_out,
@@ -5032,7 +5192,7 @@ impl Filesystem for CryptomatorFS {
 
         // Get source handle
         let Some(mut handle_in) = self.handle_table.get_mut(&fh_in) else {
-            reply.error(libc::EBADF);
+            reply.error(fuser::Errno::from_i32(libc::EBADF));
             return;
         };
 
@@ -5098,7 +5258,7 @@ impl Filesystem for CryptomatorFS {
                     fh_in,
                     "copy_file_range while reader is loaned, returning EAGAIN"
                 );
-                reply.error(libc::EAGAIN);
+                reply.error(fuser::Errno::from_i32(libc::EAGAIN));
             }
             FuseHandle::ReadBuffer(content) => {
                 // Synchronous path for in-memory buffers (fast)
@@ -5127,14 +5287,16 @@ impl Filesystem for CryptomatorFS {
     }
 
     fn lseek(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
+        &self,
+        _req: &fuser::Request,
+        ino: fuser::INodeNo,
+        fh: fuser::FileHandle,
         offset: i64,
         whence: i32,
         reply: ReplyLseek,
     ) {
+        let ino = ino.0;
+        let fh = fh.0;
         trace!(
             inode = ino,
             fh = fh,
@@ -5146,7 +5308,7 @@ impl Filesystem for CryptomatorFS {
         // Get file size for SEEK_END calculations
         let file_size = {
             let Some(entry) = self.inodes.get(ino) else {
-                reply.error(libc::ENOENT);
+                reply.error(fuser::Errno::from_i32(libc::ENOENT));
                 return;
             };
 
@@ -5176,18 +5338,20 @@ impl Filesystem for CryptomatorFS {
                             }
                             Ok(Ok(None)) => 0,
                             Ok(Err(e)) => {
-                                reply.error(crate::error::vault_error_to_errno(&e));
+                                reply.error(fuser::Errno::from_i32(
+                                    crate::error::vault_error_to_errno(&e),
+                                ));
                                 return;
                             }
                             Err(exec_err) => {
-                                reply.error(exec_err.to_errno());
+                                reply.error(fuser::Errno::from_i32(exec_err.to_errno()));
                                 return;
                             }
                         }
                     }
                 }
                 _ => {
-                    reply.error(libc::EINVAL);
+                    reply.error(fuser::Errno::from_i32(libc::EINVAL));
                     return;
                 }
             }
@@ -5208,7 +5372,7 @@ impl Filesystem for CryptomatorFS {
                 #[allow(clippy::cast_possible_wrap)]
                 let new_offset = (file_size as i64) + offset;
                 if new_offset < 0 {
-                    reply.error(libc::EINVAL);
+                    reply.error(fuser::Errno::from_i32(libc::EINVAL));
                 } else {
                     reply.offset(new_offset);
                 }
@@ -5218,7 +5382,7 @@ impl Filesystem for CryptomatorFS {
                 // FUSE guarantees offset is non-negative
                 #[allow(clippy::cast_sign_loss)]
                 if offset as u64 >= file_size {
-                    reply.error(libc::ENXIO);
+                    reply.error(fuser::Errno::from_i32(libc::ENXIO));
                 } else {
                     reply.offset(offset);
                 }
@@ -5228,7 +5392,7 @@ impl Filesystem for CryptomatorFS {
                 // FUSE guarantees offset is non-negative
                 #[allow(clippy::cast_sign_loss)]
                 if offset as u64 >= file_size {
-                    reply.error(libc::ENXIO);
+                    reply.error(fuser::Errno::from_i32(libc::ENXIO));
                 } else {
                     // File sizes in practice fit in i64; wrapping is extremely unlikely
                     #[allow(clippy::cast_possible_wrap)]
@@ -5236,7 +5400,7 @@ impl Filesystem for CryptomatorFS {
                 }
             }
             _ => {
-                reply.error(libc::EINVAL);
+                reply.error(fuser::Errno::from_i32(libc::EINVAL));
             }
         }
     }
@@ -5247,9 +5411,9 @@ impl Filesystem for CryptomatorFS {
     // Return ENOTSUP for all xattr operations.
 
     fn getxattr(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
+        &self,
+        _req: &fuser::Request,
+        _ino: fuser::INodeNo,
         _name: &OsStr,
         _size: u32,
         reply: fuser::ReplyXattr,
@@ -5257,28 +5421,40 @@ impl Filesystem for CryptomatorFS {
         // Extended attributes are not supported for Cryptomator vaults
         // Note: ENOTSUP (not ENODATA) indicates xattrs aren't supported at all,
         // rather than the specific attribute not existing.
-        reply.error(libc::ENOTSUP);
+        reply.error(fuser::Errno::from_i32(libc::ENOTSUP));
     }
 
     fn setxattr(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
+        &self,
+        _req: &fuser::Request,
+        _ino: fuser::INodeNo,
         _name: &OsStr,
         _value: &[u8],
         _flags: i32,
         _position: u32,
         reply: ReplyEmpty,
     ) {
-        reply.error(libc::ENOTSUP);
+        reply.error(fuser::Errno::from_i32(libc::ENOTSUP));
     }
 
-    fn listxattr(&mut self, _req: &Request<'_>, _ino: u64, _size: u32, reply: fuser::ReplyXattr) {
-        reply.error(libc::ENOTSUP);
+    fn listxattr(
+        &self,
+        _req: &fuser::Request,
+        _ino: fuser::INodeNo,
+        _size: u32,
+        reply: fuser::ReplyXattr,
+    ) {
+        reply.error(fuser::Errno::from_i32(libc::ENOTSUP));
     }
 
-    fn removexattr(&mut self, _req: &Request<'_>, _ino: u64, _name: &OsStr, reply: ReplyEmpty) {
-        reply.error(libc::ENOTSUP);
+    fn removexattr(
+        &self,
+        _req: &fuser::Request,
+        _ino: fuser::INodeNo,
+        _name: &OsStr,
+        reply: ReplyEmpty,
+    ) {
+        reply.error(fuser::Errno::from_i32(libc::ENOTSUP));
     }
 }
 

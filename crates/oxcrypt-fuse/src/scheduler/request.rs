@@ -193,9 +193,9 @@ impl HazardousReply {
     /// Send an error reply.
     pub fn error(self, errno: i32) {
         match self {
-            HazardousReply::Empty(r) => r.error(errno),
-            HazardousReply::Directory(r) => r.error(errno),
-            HazardousReply::DirectoryPlus(r) => r.error(errno),
+            HazardousReply::Empty(r) => r.error(fuser::Errno::from_i32(errno)),
+            HazardousReply::Directory(r) => r.error(fuser::Errno::from_i32(errno)),
+            HazardousReply::DirectoryPlus(r) => r.error(fuser::Errno::from_i32(errno)),
         }
     }
 }
@@ -510,10 +510,10 @@ impl StructuralReply {
     /// Send an error reply.
     pub fn error(self, errno: i32) {
         match self {
-            StructuralReply::Empty(r) => r.error(errno),
-            StructuralReply::Entry(r) => r.error(errno),
-            StructuralReply::Create(r) => r.error(errno),
-            StructuralReply::Attr(r) => r.error(errno),
+            StructuralReply::Empty(r) => r.error(fuser::Errno::from_i32(errno)),
+            StructuralReply::Entry(r) => r.error(fuser::Errno::from_i32(errno)),
+            StructuralReply::Create(r) => r.error(fuser::Errno::from_i32(errno)),
+            StructuralReply::Attr(r) => r.error(fuser::Errno::from_i32(errno)),
         }
     }
 }
