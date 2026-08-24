@@ -19,7 +19,7 @@ pub const LOCAL_IO_TIMEOUT: Duration = Duration::from_secs(10);
 /// local filesystem vaults with shorter TTLs for fresher metadata.
 #[derive(Debug, Clone)]
 pub struct MountConfig {
-    /// Time-to-live for cached file attributes.
+    /// Time-to-live for cached metadata: file attributes and directory listings.
     ///
     /// Default: 60 seconds (network mode) or 1 second (local mode).
     pub attr_ttl: Duration,

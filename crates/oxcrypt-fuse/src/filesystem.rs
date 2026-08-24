@@ -987,7 +987,7 @@ impl CryptomatorFS {
 
         let scheduler_shared = Some(scheduler.shared_state());
         let inodes = Arc::new(InodeTable::new());
-        let dir_cache = Arc::new(DirCache::default());
+        let dir_cache = Arc::new(DirCache::new(config.attr_ttl));
         let open_handle_tracker = Arc::new(crate::handles::OpenHandleTracker::new());
         let hazardous_handler: Option<Arc<dyn HazardousOpHandler>> =
             Some(Arc::new(HazardousHandler::new(
